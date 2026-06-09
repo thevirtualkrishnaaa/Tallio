@@ -3,6 +3,7 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  signInAnonymously,
   signOut,
 } from 'firebase/auth';
 import type { User } from 'firebase/auth';
@@ -14,6 +15,7 @@ import {
   collection,
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
+import { seedDemoOrg } from '../lib/demoSeed';
 import type { Organization, OrgRole } from '../types';
 
 interface AuthContextValue {
@@ -22,12 +24,19 @@ interface AuthContextValue {
   org: Organization | null;
   role: OrgRole | null;
   orgLoading: boolean;
+  isDemo: boolean;
+  demoExpired: boolean;
+  demoMsLeft: number | null;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
+  startDemo: () => Promise<void>;
   logout: () => Promise<void>;
   createOrganization: (name: string, currencyCode: string, currencySymbol: string, defaultTaxRate: number) => Promise<void>;
   refreshOrg: () => Promise<void>;
 }
+
+// 24-hour demo window
+const DEMO_DURATION_MS = 24 * 60 * 60 * 1000;
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
@@ -37,6 +46,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [org, setOrg] = useState<Organization | null>(null);
   const [role, setRole] = useState<OrgRole | null>(null);
   const [orgLoading, setOrgLoading] = useState(true);
+  const [demoMsLeft, setDemoMsLeft] = useState<number | null>(null);
+
+  const isDemo = !!org?.isDemo;
+
+  // Resolve demo start time (ms) from the org's createdAt Firestore timestamp
+  const demoStartMs = (() => {
+    if (!org?.isDemo || !org.createdAt) return null;
+    const ts: any = org.createdAt;
+    if (typeof ts.toMillis === 'function') return ts.toMillis();
+    if (ts.seconds) return ts.seconds * 1000;
+    return null;
+  })();
+
+  // Tick down the demo countdown every second
+  useEffect(() => {
+    if (!isDemo || demoStartMs == null) {
+      setDemoMsLeft(null);
+      return;
+    }
+    const update = () => {
+      const left = demoStartMs + DEMO_DURATION_MS - Date.now();
+      setDemoMsLeft(left > 0 ? left : 0);
+    };
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [isDemo, demoStartMs]);
+
+  const demoExpired = isDemo && demoMsLeft !== null && demoMsLeft <= 0;
 
   const loadOrgForUser = async (u: User) => {
     setOrgLoading(true);
@@ -96,6 +134,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
+  const startDemo = async () => {
+    // Sign in anonymously — no email/password required
+    const cred = await signInAnonymously(auth);
+    const uid = cred.user.uid;
+
+    // One demo org per anonymous user
+    const orgId = `demo-${uid}`;
+    await seedDemoOrg(orgId, uid);
+
+    // Pointer doc so loadOrgForUser can resolve membership
+    await setDoc(doc(db, 'users', uid), {
+      email: 'demo@tallio.app',
+      orgId,
+      role: 'owner',
+      isDemo: true,
+      createdAt: serverTimestamp(),
+    });
+
+    await loadOrgForUser(cred.user);
+  };
+
   const logout = async () => {
     await signOut(auth);
   };
@@ -139,7 +198,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, org, role, orgLoading, login, register, logout, createOrganization, refreshOrg }}
+      value={{ user, loading, org, role, orgLoading, isDemo, demoExpired, demoMsLeft, login, register, startDemo, logout, createOrganization, refreshOrg }}
     >
       {children}
     </AuthContext.Provider>

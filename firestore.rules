@@ -60,7 +60,7 @@ service cloud.firestore {
 
       match /members/{memberId} {
         allow read:   if isMember(orgId);
-        allow create: if isOwner(orgId) || isUser(memberId); // owner invites, or self during onboarding
+        allow create: if isUser(memberId) || isOwner(orgId); // self during onboarding, or owner invites
         allow update: if isOwner(orgId);
         allow delete: if isOwner(orgId);
       }

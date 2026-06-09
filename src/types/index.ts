@@ -11,6 +11,7 @@ export interface Organization {
   currency: Currency;
   defaultTaxRate: number; // percentage, e.g. 18
   ownerId: string;
+  isDemo?: boolean;
   createdAt: any;
 }
 

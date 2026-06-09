@@ -2,9 +2,10 @@ import { useAuth } from './contexts/AuthContext';
 import AuthPage from './pages/AuthPage';
 import OnboardingPage from './pages/OnboardingPage';
 import DashboardShell from './pages/DashboardShell';
+import DemoExpiredPage from './pages/DemoExpiredPage';
 
 function App() {
-  const { user, loading, org, orgLoading } = useAuth();
+  const { user, loading, org, orgLoading, demoExpired } = useAuth();
 
   if (loading) {
     return (
@@ -23,6 +24,9 @@ function App() {
       </div>
     );
   }
+
+  // Demo window elapsed — block access behind the upgrade screen
+  if (demoExpired) return <DemoExpiredPage />;
 
   if (!org) return <OnboardingPage />;
 

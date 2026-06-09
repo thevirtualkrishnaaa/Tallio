@@ -9,6 +9,7 @@ import ProductsPage from './ProductsPage';
 import CustomersPage from './CustomersPage';
 import SettingsPage from './SettingsPage';
 import DashboardPage from './DashboardPage';
+import DemoBanner from '../components/DemoBanner';
 
 type Tab = 'dashboard' | 'pos' | 'history' | 'products' | 'customers' | 'settings';
 
@@ -28,7 +29,9 @@ const DashboardShell: React.FC = () => {
   let lastSection = '';
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      <DemoBanner />
+      <div className="flex flex-1 min-h-0">
       <aside className="w-56 bg-white border-r flex flex-col">
         <div className="px-4 py-4 border-b">
           <div className="text-base font-semibold text-gray-900">{org?.name}</div>
@@ -81,6 +84,7 @@ const DashboardShell: React.FC = () => {
           {tab === 'settings' && <SettingsPage />}
         </div>
       </main>
+      </div>
     </div>
   );
 };
