@@ -50,7 +50,7 @@
 
 ### 🔜 Phase 2 — Access Control & Subscriptions
 - [x] **Guest / Demo Mode** — 1-day trial, no sign-up required, sample data
-- [ ] **Subscription tiers** via Stripe:
+- [x] **Subscription tiers** (plan-gating live; Stripe checkout still to come):
 
 | Plan | Price | Limits |
 |---|---|---|
@@ -58,18 +58,19 @@
 | 🚀 **Growth** | £49/mo | 500 products, unlimited sales, 3 users |
 | 🏢 **Scale** | £149/mo | Unlimited everything, 10 users, priority support |
 
-- [ ] Plan gates enforced in Firestore rules + UI
-- [ ] Upgrade / downgrade flow
-- [ ] Billing history page
+- [x] Plan gates enforced in UI (products + monthly bills)
+- [x] Billing & Plan page with instant plan switching
+- [ ] **Real Stripe checkout** (needs Firebase Blaze + Cloud Function)
 
 ---
 
 ### 🤖 Phase 3 — AI Layer
-- [ ] **AI Sales Insights** — natural language summary of weekly/monthly performance
-- [ ] **Smart Restock Alerts** — AI predicts when stock will run out
+- [x] **AI Sales Insights** — auto natural-language insights (revenue trend, best seller, best day, avg basket, top customer)
+- [x] **Smart Restock Alerts** — velocity-based "runs out in N days" predictions
+- [x] **Ask Tallio** — chat interface powered by Google Gemini, grounded in live data
 - [ ] **Receipt Scan (OCR)** — scan paper receipts to auto-log expenses
-- [ ] **Ask Tallio** — chat interface: *"What was my best selling product last month?"*
 - [ ] **AI-generated reports** — exportable PDF summaries
+- [ ] Move Gemini key behind a Cloud Function (pre-launch hardening)
 
 ---
 
@@ -92,6 +93,10 @@ cd Tallio
 
 # Install dependencies
 npm install
+
+# Configure the AI key (for "Ask Tallio")
+# Copy .env.example to .env.local and add your free Gemini key
+# from https://aistudio.google.com/app/apikey
 
 # Start dev server
 npm run dev
