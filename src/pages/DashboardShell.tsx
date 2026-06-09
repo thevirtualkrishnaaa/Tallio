@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  LayoutGrid, Receipt, History, Package, Users, Settings, LogOut, CreditCard, Sparkles,
+  LayoutGrid, Receipt, History, Package, Users, Settings, LogOut, CreditCard, Sparkles, MessageSquare,
 } from 'lucide-react';
 import POSPage from './POSPage';
 import HistoryPage from './HistoryPage';
@@ -11,13 +11,15 @@ import SettingsPage from './SettingsPage';
 import DashboardPage from './DashboardPage';
 import BillingPage from './BillingPage';
 import InsightsPage from './InsightsPage';
+import AskTallioPage from './AskTallioPage';
 import DemoBanner from '../components/DemoBanner';
 
-type Tab = 'dashboard' | 'insights' | 'pos' | 'history' | 'products' | 'customers' | 'billing' | 'settings';
+type Tab = 'dashboard' | 'insights' | 'ask' | 'pos' | 'history' | 'products' | 'customers' | 'billing' | 'settings';
 
 const NAV: { id: Tab; label: string; icon: React.ElementType; section: string }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, section: 'Overview' },
   { id: 'insights', label: 'Insights', icon: Sparkles, section: 'Overview' },
+  { id: 'ask', label: 'Ask Tallio', icon: MessageSquare, section: 'Overview' },
   { id: 'pos', label: 'New bill', icon: Receipt, section: 'Billing' },
   { id: 'history', label: 'Bill history', icon: History, section: 'Billing' },
   { id: 'products', label: 'Products', icon: Package, section: 'Catalogue' },
@@ -92,6 +94,7 @@ const DashboardShell: React.FC = () => {
         <div className="p-6 max-w-7xl mx-auto">
           {tab === 'dashboard' && <DashboardPage />}
           {tab === 'insights' && <InsightsPage />}
+          {tab === 'ask' && <AskTallioPage />}
           {tab === 'pos' && <POSPage />}
           {tab === 'history' && <HistoryPage />}
           {tab === 'products' && <ProductsPage />}
