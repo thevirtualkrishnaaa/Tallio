@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  LayoutGrid, Receipt, History, Package, Users, Settings, LogOut,
+  LayoutGrid, Receipt, History, Package, Users, Settings, LogOut, CreditCard,
 } from 'lucide-react';
 import POSPage from './POSPage';
 import HistoryPage from './HistoryPage';
@@ -9,9 +9,10 @@ import ProductsPage from './ProductsPage';
 import CustomersPage from './CustomersPage';
 import SettingsPage from './SettingsPage';
 import DashboardPage from './DashboardPage';
+import BillingPage from './BillingPage';
 import DemoBanner from '../components/DemoBanner';
 
-type Tab = 'dashboard' | 'pos' | 'history' | 'products' | 'customers' | 'settings';
+type Tab = 'dashboard' | 'pos' | 'history' | 'products' | 'customers' | 'billing' | 'settings';
 
 const NAV: { id: Tab; label: string; icon: React.ElementType; section: string }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, section: 'Overview' },
@@ -19,12 +20,23 @@ const NAV: { id: Tab; label: string; icon: React.ElementType; section: string }[
   { id: 'history', label: 'Bill history', icon: History, section: 'Billing' },
   { id: 'products', label: 'Products', icon: Package, section: 'Catalogue' },
   { id: 'customers', label: 'Customers', icon: Users, section: 'Catalogue' },
+  { id: 'billing', label: 'Billing & Plan', icon: CreditCard, section: 'System' },
   { id: 'settings', label: 'Settings', icon: Settings, section: 'System' },
 ];
 
 const DashboardShell: React.FC = () => {
   const { org, logout } = useAuth();
   const [tab, setTab] = useState<Tab>('dashboard');
+
+  // Let any page request navigation (e.g. "Upgrade plan" links)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const dest = (e as CustomEvent).detail as Tab;
+      if (dest) setTab(dest);
+    };
+    window.addEventListener('tallio:nav', handler);
+    return () => window.removeEventListener('tallio:nav', handler);
+  }, []);
 
   let lastSection = '';
 
@@ -81,6 +93,7 @@ const DashboardShell: React.FC = () => {
           {tab === 'history' && <HistoryPage />}
           {tab === 'products' && <ProductsPage />}
           {tab === 'customers' && <CustomersPage />}
+          {tab === 'billing' && <BillingPage />}
           {tab === 'settings' && <SettingsPage />}
         </div>
       </main>

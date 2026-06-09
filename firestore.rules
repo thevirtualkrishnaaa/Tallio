@@ -66,6 +66,16 @@ service cloud.firestore {
       }
 
 
+      // ── categories ────────────────────────────────────────────────────
+      // All members can read. Owners/managers can write.
+
+      match /categories/{categoryId} {
+        allow read:             if isMember(orgId);
+        allow create, update:   if isManager(orgId);
+        allow delete:           if isManager(orgId);
+      }
+
+
       // ── products ──────────────────────────────────────────────────────
       // All members can read. Owners/managers can write.
 
@@ -76,11 +86,12 @@ service cloud.firestore {
       }
 
 
-      // ── sales ─────────────────────────────────────────────────────────
-      // All members can read and create (cashiers ring up sales).
-      // Only owners/managers can delete (void a sale).
+      // ── bills (sales) ─────────────────────────────────────────────────
+      // All members can read and create (cashiers ring up bills).
+      // Stock decrements during checkout also update products (covered above).
+      // Only owners can delete (void a bill).
 
-      match /sales/{saleId} {
+      match /bills/{billId} {
         allow read:   if isMember(orgId);
         allow create: if isMember(orgId);
         allow update: if isManager(orgId);

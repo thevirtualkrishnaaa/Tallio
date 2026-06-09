@@ -13,6 +13,7 @@ export async function seedDemoOrg(orgId: string, userId: string) {
     currency: { code: 'GBP', symbol: '£' },
     defaultTaxRate: 20,
     ownerId: userId,
+    plan: 'scale', // demo unlocks all features
     isDemo: true,
     createdAt: serverTimestamp(),
   });
@@ -82,15 +83,17 @@ export async function seedDemoOrg(orgId: string, userId: string) {
     { items: [{ name: 'Club Sandwich', qty: 3, price: 6.50 }, { name: 'Green Tea', qty: 3, price: 2.20 }], daysAgo: 6 },
   ];
 
+  const demoCustomerNames = ['Alice Johnson', 'Ben Carter', 'Clara Singh', 'David Park', 'Walk-in customer'];
+
   for (let i = 0; i < saleData.length; i++) {
     const sale = saleData[i];
-    const ref = doc(collection(db, 'orgs', orgId, 'sales'));
+    const ref = doc(collection(db, 'orgs', orgId, 'bills'));
     const billItems = sale.items.map(it => ({
       productId: '',
       name: it.name,
       quantity: it.qty,
       unitPrice: it.price,
-      unitCost: it.price * 0.35,
+      unitCost: parseFloat((it.price * 0.35).toFixed(2)),
       total: it.qty * it.price,
     }));
     const subTotal = billItems.reduce((s, it) => s + it.total, 0);
@@ -99,6 +102,8 @@ export async function seedDemoOrg(orgId: string, userId: string) {
     date.setDate(date.getDate() - sale.daysAgo);
     batch.set(ref, {
       ref: `#${String(i + 1).padStart(4, '0')}`,
+      customerId: null,
+      customerName: demoCustomerNames[i % demoCustomerNames.length],
       items: billItems,
       subTotal,
       discountPercent: 0,

@@ -5,7 +5,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useOrgCollection } from '../lib/useOrgCollection';
 import { db } from '../lib/firebase';
 import { orgCol, orgDoc } from '../lib/orgData';
-import type { Product, Customer, BillItem } from '../types';
+import { isAtLimit } from '../lib/plans';
+import type { Product, Customer, BillItem, Bill } from '../types';
 
 interface CartLine {
   productId: string;
@@ -13,9 +14,10 @@ interface CartLine {
 }
 
 const POSPage: React.FC = () => {
-  const { org, user } = useAuth();
+  const { org, user, plan } = useAuth();
   const { data: products } = useOrgCollection<Product>('products');
   const { data: customers } = useOrgCollection<Customer>('customers');
+  const { data: bills } = useOrgCollection<Bill>('bills');
 
   const [cart, setCart] = useState<CartLine[]>([]);
   const [activeCategory, setActiveCategory] = useState('All');
@@ -24,6 +26,20 @@ const POSPage: React.FC = () => {
   const [customerId, setCustomerId] = useState('');
   const [busy, setBusy] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
+
+  // Count bills created in the current calendar month
+  const billsThisMonth = useMemo(() => {
+    const now = new Date();
+    return bills.filter((b) => {
+      const ts: any = b.createdAt;
+      const ms = ts?.toMillis ? ts.toMillis() : ts?.seconds ? ts.seconds * 1000 : null;
+      if (ms == null) return false;
+      const d = new Date(ms);
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    }).length;
+  }, [bills]);
+
+  const atSalesLimit = isAtLimit(plan, 'salesPerMonth', billsThisMonth);
 
   if (!org || !user) return null;
   const currency = org.currency.symbol;
@@ -90,6 +106,7 @@ const POSPage: React.FC = () => {
 
   const checkout = async (markPaid: boolean) => {
     if (cartLines.length === 0) { showToast('Cart is empty'); return; }
+    if (atSalesLimit) { showToast('Monthly bill limit reached — upgrade your plan'); return; }
     setBusy(true);
     try {
       const items: BillItem[] = cartLines.map((l) => ({
@@ -165,6 +182,19 @@ const POSPage: React.FC = () => {
 
       <h2 className="text-2xl font-semibold text-gray-900 mb-1">New bill</h2>
       <p className="text-sm text-gray-500 mb-6">Tap a product to add it to the current bill.</p>
+
+      {atSalesLimit && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg p-4 mb-4 flex items-center justify-between gap-3">
+          <span>
+            You've hit your <strong>{plan.name}</strong> plan limit of {plan.limits.salesPerMonth} bills this month.
+          </span>
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('tallio:nav', { detail: 'billing' }))}
+            className="bg-amber-600 text-white px-3 py-1.5 rounded-md text-xs font-medium hover:bg-amber-700 whitespace-nowrap">
+            Upgrade plan
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-5">
         <div>

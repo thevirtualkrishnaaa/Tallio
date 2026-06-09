@@ -4,6 +4,7 @@ import { Plus, Trash2, Edit3 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useOrgCollection } from '../lib/useOrgCollection';
 import { orgCol, orgDoc } from '../lib/orgData';
+import { isAtLimit } from '../lib/plans';
 import type { Category, Product, AttributeDef } from '../types';
 import Modal from '../components/Modal';
 
@@ -21,9 +22,11 @@ const emptyProduct = (categories: Category[]): Partial<Product> => ({
 });
 
 const ProductsPage: React.FC = () => {
-  const { org } = useAuth();
+  const { org, plan } = useAuth();
   const { data: categories } = useOrgCollection<Category>('categories');
   const { data: products, loading } = useOrgCollection<Product>('products');
+
+  const atProductLimit = isAtLimit(plan, 'products', products.length);
 
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
@@ -34,6 +37,7 @@ const ProductsPage: React.FC = () => {
   const currency = org.currency.symbol;
 
   const openAddProduct = () => {
+    if (atProductLimit) return;
     setEditingProduct(emptyProduct(categories));
     setShowProductModal(true);
   };
@@ -113,13 +117,32 @@ const ProductsPage: React.FC = () => {
           </button>
           <button
             onClick={openAddProduct}
-            disabled={categories.length === 0}
+            disabled={categories.length === 0 || atProductLimit}
             className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm hover:bg-gray-800 flex items-center gap-1.5 disabled:opacity-40"
           >
             <Plus size={16} /> Add product
           </button>
         </div>
       </div>
+
+      {atProductLimit && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg p-4 mb-4 flex items-center justify-between gap-3">
+          <span>
+            You've reached your <strong>{plan.name}</strong> plan limit of{' '}
+            {plan.limits.products} products. Upgrade to add more.
+          </span>
+          <a href="#billing" onClick={() => { window.dispatchEvent(new CustomEvent('tallio:nav', { detail: 'billing' })); }}
+            className="bg-amber-600 text-white px-3 py-1.5 rounded-md text-xs font-medium hover:bg-amber-700 whitespace-nowrap cursor-pointer">
+            Upgrade plan
+          </a>
+        </div>
+      )}
+
+      {!atProductLimit && plan.limits.products !== Infinity && products.length >= plan.limits.products - 5 && (
+        <div className="bg-gray-50 border text-gray-500 text-xs rounded-lg px-4 py-2 mb-4">
+          {products.length} of {plan.limits.products} products used on your {plan.name} plan.
+        </div>
+      )}
 
       {categories.length === 0 && (
         <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg p-4 mb-4">

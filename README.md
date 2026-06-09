@@ -49,8 +49,8 @@
 ---
 
 ### 🔜 Phase 2 — Access Control & Subscriptions
-- [ ] **Guest / Demo Mode** — 1-day trial, no sign-up required, sample data
-- [ ] **Subscription tiers** via Stripe / Razorpay:
+- [x] **Guest / Demo Mode** — 1-day trial, no sign-up required, sample data
+- [ ] **Subscription tiers** via Stripe:
 
 | Plan | Price | Limits |
 |---|---|---|

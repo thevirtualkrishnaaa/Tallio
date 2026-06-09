@@ -16,6 +16,8 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { seedDemoOrg } from '../lib/demoSeed';
+import { getPlan } from '../lib/plans';
+import type { Plan, PlanId } from '../lib/plans';
 import type { Organization, OrgRole } from '../types';
 
 interface AuthContextValue {
@@ -24,6 +26,7 @@ interface AuthContextValue {
   org: Organization | null;
   role: OrgRole | null;
   orgLoading: boolean;
+  plan: Plan;
   isDemo: boolean;
   demoExpired: boolean;
   demoMsLeft: number | null;
@@ -32,6 +35,7 @@ interface AuthContextValue {
   startDemo: () => Promise<void>;
   logout: () => Promise<void>;
   createOrganization: (name: string, currencyCode: string, currencySymbol: string, defaultTaxRate: number) => Promise<void>;
+  changePlan: (planId: PlanId) => Promise<void>;
   refreshOrg: () => Promise<void>;
 }
 
@@ -49,6 +53,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [demoMsLeft, setDemoMsLeft] = useState<number | null>(null);
 
   const isDemo = !!org?.isDemo;
+  const plan = getPlan(org?.plan);
 
   // Resolve demo start time (ms) from the org's createdAt Firestore timestamp
   const demoStartMs = (() => {
@@ -173,6 +178,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       currency: { code: currencyCode, symbol: currencySymbol },
       defaultTaxRate,
       ownerId: user.uid,
+      plan: 'starter',
       createdAt: serverTimestamp(),
     });
 
@@ -192,13 +198,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await loadOrgForUser(user);
   };
 
+  const changePlan = async (planId: PlanId) => {
+    if (!user || !org) throw new Error('No active organisation');
+    // No real billing yet — this just records the chosen plan.
+    // Stripe Checkout will replace this with a verified, server-side update.
+    await setDoc(doc(db, 'orgs', org.id), { plan: planId }, { merge: true });
+    await loadOrgForUser(user);
+  };
+
   const refreshOrg = async () => {
     if (user) await loadOrgForUser(user);
   };
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, org, role, orgLoading, isDemo, demoExpired, demoMsLeft, login, register, startDemo, logout, createOrganization, refreshOrg }}
+      value={{ user, loading, org, role, orgLoading, plan, isDemo, demoExpired, demoMsLeft, login, register, startDemo, logout, createOrganization, changePlan, refreshOrg }}
     >
       {children}
     </AuthContext.Provider>
