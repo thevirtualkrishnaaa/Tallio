@@ -1,0 +1,129 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── helpers ────────────────────────────────────────────────────────────
+
+    // Is the request from a signed-in user?
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Is this request from the given uid?
+    function isUser(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+
+    // Does the signed-in user belong to this org?
+    function isMember(orgId) {
+      return isAuth() &&
+        exists(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid));
+    }
+
+    // Is the signed-in user an owner of this org?
+    function isOwner(orgId) {
+      return isAuth() &&
+        get(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid)).data.role == 'owner';
+    }
+
+    // Is the signed-in user an owner OR manager of this org?
+    function isManager(orgId) {
+      return isAuth() &&
+        get(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid)).data.role in ['owner', 'manager'];
+    }
+
+
+    // ── users/{uid} ────────────────────────────────────────────────────────
+    // Each user can only read/write their own pointer doc.
+
+    match /users/{uid} {
+      allow read, write: if isUser(uid);
+    }
+
+
+    // ── orgs/{orgId} ───────────────────────────────────────────────────────
+    // Any member can read the org doc.
+    // Only the owner can update org settings.
+    // Any authenticated user can create a new org (during onboarding).
+
+    match /orgs/{orgId} {
+      allow read:   if isMember(orgId);
+      allow create: if isAuth();
+      allow update: if isOwner(orgId);
+      allow delete: if false; // orgs are never deleted through the client
+
+
+      // ── members subcollection ─────────────────────────────────────────
+      // Members can read the members list.
+      // Only owners can add/remove/update members.
+
+      match /members/{memberId} {
+        allow read:   if isMember(orgId);
+        allow create: if isOwner(orgId) || isUser(memberId); // owner invites, or self during onboarding
+        allow update: if isOwner(orgId);
+        allow delete: if isOwner(orgId);
+      }
+
+
+      // ── products ──────────────────────────────────────────────────────
+      // All members can read. Owners/managers can write.
+
+      match /products/{productId} {
+        allow read:             if isMember(orgId);
+        allow create, update:   if isManager(orgId);
+        allow delete:           if isManager(orgId);
+      }
+
+
+      // ── sales ─────────────────────────────────────────────────────────
+      // All members can read and create (cashiers ring up sales).
+      // Only owners/managers can delete (void a sale).
+
+      match /sales/{saleId} {
+        allow read:   if isMember(orgId);
+        allow create: if isMember(orgId);
+        allow update: if isManager(orgId);
+        allow delete: if isOwner(orgId);
+      }
+
+
+      // ── customers ─────────────────────────────────────────────────────
+      // All members can read. Owners/managers can write.
+
+      match /customers/{customerId} {
+        allow read:             if isMember(orgId);
+        allow create, update:   if isManager(orgId);
+        allow delete:           if isManager(orgId);
+      }
+
+
+      // ── expenses ──────────────────────────────────────────────────────
+      // All members can read. Owners/managers can write.
+
+      match /expenses/{expenseId} {
+        allow read:             if isMember(orgId);
+        allow create, update:   if isManager(orgId);
+        allow delete:           if isOwner(orgId);
+      }
+
+
+      // ── settings ──────────────────────────────────────────────────────
+      // All members can read. Only owners can change settings.
+
+      match /settings/{docId} {
+        allow read:             if isMember(orgId);
+        allow create, update:   if isOwner(orgId);
+        allow delete:           if false;
+      }
+
+    } // end orgs/{orgId}
+
+
+    // ── deny everything else ───────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+  }
+}

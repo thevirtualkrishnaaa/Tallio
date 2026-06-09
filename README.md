@@ -54,9 +54,9 @@
 
 | Plan | Price | Limits |
 |---|---|---|
-| 🆓 **Starter** | Free | 50 products, 100 sales/mo, 1 user |
-| 🚀 **Growth** | ₹499/mo | 500 products, unlimited sales, 3 users |
-| 🏢 **Scale** | ₹1499/mo | Unlimited everything, 10 users, priority support |
+| 🆓 **Starter** | £10/mo | 50 products, 100 sales/mo, 1 user |
+| 🚀 **Growth** | £49/mo | 500 products, unlimited sales, 3 users |
+| 🏢 **Scale** | £149/mo | Unlimited everything, 10 users, priority support |
 
 - [ ] Plan gates enforced in Firestore rules + UI
 - [ ] Upgrade / downgrade flow
