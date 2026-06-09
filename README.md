@@ -1,73 +1,132 @@
-# React + TypeScript + Vite
+# Tallio — Small Business Finance, Simplified
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> A modern Point-of-Sale & business finance platform built for small businesses. Manage sales, inventory, customers, and finances — all in one place.
 
-Currently, two official plugins are available:
+🌐 **Live App:** [https://talliofinance.web.app](https://talliofinance.web.app)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## ✨ Features (v1 — Live)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Module | Description |
+|---|---|
+| 🔐 **Authentication** | Secure login / sign-up via Firebase Auth |
+| 🏢 **Onboarding** | Business setup wizard — name, type, currency |
+| 🛒 **Point of Sale** | Fast billing with cart, quantities & totals |
+| 📦 **Products** | Add, edit, delete inventory items with pricing |
+| 📜 **Sales History** | Full transaction log with date & amount |
+| 👥 **Customers** | Customer directory with contact info |
+| 📊 **Dashboard** | Revenue overview with charts |
+| ⚙️ **Settings** | Business profile & preferences |
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 🛠️ Tech Stack
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- **Frontend** — React 19 + TypeScript + Vite
+- **Styling** — Tailwind CSS v4
+- **Database** — Firebase Firestore (real-time, multi-tenant)
+- **Auth** — Firebase Authentication
+- **Hosting** — Firebase Hosting
+- **Charts** — Recharts
+- **Icons** — Lucide React
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+---
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## 🗺️ Roadmap
+
+### ✅ Phase 1 — Core App (Done)
+- [x] Auth (login / signup)
+- [x] Business onboarding
+- [x] POS — billing & cart
+- [x] Products management
+- [x] Sales history
+- [x] Customer directory
+- [x] Dashboard with charts
+- [x] Deployed to Firebase Hosting
+- [x] Source on GitHub
+
+---
+
+### 🔜 Phase 2 — Access Control & Subscriptions
+- [ ] **Guest / Demo Mode** — 1-day trial, no sign-up required, sample data
+- [ ] **Subscription tiers** via Stripe / Razorpay:
+
+| Plan | Price | Limits |
+|---|---|---|
+| 🆓 **Starter** | Free | 50 products, 100 sales/mo, 1 user |
+| 🚀 **Growth** | ₹499/mo | 500 products, unlimited sales, 3 users |
+| 🏢 **Scale** | ₹1499/mo | Unlimited everything, 10 users, priority support |
+
+- [ ] Plan gates enforced in Firestore rules + UI
+- [ ] Upgrade / downgrade flow
+- [ ] Billing history page
+
+---
+
+### 🤖 Phase 3 — AI Layer
+- [ ] **AI Sales Insights** — natural language summary of weekly/monthly performance
+- [ ] **Smart Restock Alerts** — AI predicts when stock will run out
+- [ ] **Receipt Scan (OCR)** — scan paper receipts to auto-log expenses
+- [ ] **Ask Tallio** — chat interface: *"What was my best selling product last month?"*
+- [ ] **AI-generated reports** — exportable PDF summaries
+
+---
+
+### 🔧 Phase 4 — Power Features
+- [ ] Multi-user / staff roles (owner, cashier, viewer)
+- [ ] GST / tax calculation & invoice generation
+- [ ] WhatsApp / SMS receipt sharing
+- [ ] Expense tracking (not just sales)
+- [ ] Mobile PWA (installable on phone)
+- [ ] Export data to Excel / CSV
+
+---
+
+## 🚀 Local Development
+
+```bash
+# Clone the repo
+git clone https://github.com/thevirtualkrishnaaa/Tallio.git
+cd Tallio
+
+# Install dependencies
+npm install
+
+# Start dev server
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+App runs at `http://localhost:5173`
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+---
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## 🔥 Deploy
+
+```bash
+# Build
+npm run build
+
+# Deploy to Firebase Hosting
+firebase deploy --only hosting
 ```
+
+---
+
+## 📁 Project Structure
+
+```
+src/
+├── contexts/       # AuthContext (Firebase Auth + Firestore org)
+├── lib/            # Firebase config, org data helpers
+├── pages/          # AuthPage, DashboardShell, POSPage, etc.
+├── components/     # Shared UI components (Modal, etc.)
+├── types/          # TypeScript type definitions
+└── App.tsx         # Root — auth / onboarding / dashboard routing
+```
+
+---
+
+## 📄 License
+
+MIT © [thevirtualkrishnaaa](https://github.com/thevirtualkrishnaaa)
