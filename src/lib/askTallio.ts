@@ -103,6 +103,44 @@ export function buildBusinessContext(
   lines.push(`Total products in catalogue: ${products.length}`);
   lines.push(`Total customers: ${customers.length}`);
 
+  // Monthly revenue across full history
+  const monthly = new Map<string, { revenue: number; count: number }>();
+  billsWithTime.forEach((x) => {
+    const d = new Date(x.ms);
+    const key = d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+    const cur = monthly.get(key) || { revenue: 0, count: 0 };
+    cur.revenue += x.bill.total || 0;
+    cur.count += 1;
+    monthly.set(key, cur);
+  });
+  if (monthly.size > 0) {
+    lines.push('');
+    lines.push('MONTHLY REVENUE:');
+    monthly.forEach((m, key) =>
+      lines.push(`  ${key}: ${sym}${m.revenue.toFixed(2)} across ${m.count} bills`)
+    );
+  }
+
+  // Per-product qty by month (to expose rising/declining trends)
+  const prodMonthly = new Map<string, Map<string, number>>();
+  billsWithTime.forEach((x) => {
+    const d = new Date(x.ms);
+    const mk = d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+    (x.bill.items || []).forEach((i) => {
+      const m = prodMonthly.get(i.name) || new Map<string, number>();
+      m.set(mk, (m.get(mk) || 0) + i.quantity);
+      prodMonthly.set(i.name, m);
+    });
+  });
+  if (prodMonthly.size > 0) {
+    lines.push('');
+    lines.push('PRODUCT QUANTITY SOLD PER MONTH:');
+    prodMonthly.forEach((m, name) => {
+      const parts = Array.from(m.entries()).map(([mk, q]) => `${mk}: ${q}`);
+      lines.push(`  - ${name}: ${parts.join(', ')}`);
+    });
+  }
+
   lines.push('');
   lines.push('WEEK-OVER-WEEK REVENUE:');
   lines.push(`  This week (last 7 days): ${sym}${revThisWeek.toFixed(2)} across ${thisWeek.length} bills`);
