@@ -35,11 +35,47 @@ export function buildBusinessContext(
   const DAY = 86_400_000;
 
   const totalRevenue = bills.reduce((s, b) => s + (b.total || 0), 0);
-  const last30 = bills.filter((b) => {
-    const ms = toMs(b.createdAt);
-    return ms != null && now - ms <= 30 * DAY;
-  });
-  const rev30 = last30.reduce((s, b) => s + (b.total || 0), 0);
+  const billsWithTime = bills
+    .map((b) => ({ bill: b, ms: toMs(b.createdAt) }))
+    .filter((x): x is { bill: Bill; ms: number } => x.ms != null);
+
+  const last30 = billsWithTime.filter((x) => now - x.ms <= 30 * DAY);
+  const rev30 = last30.reduce((s, x) => s + (x.bill.total || 0), 0);
+
+  // Week-over-week comparison
+  const thisWeek = billsWithTime.filter((x) => now - x.ms <= 7 * DAY);
+  const lastWeek = billsWithTime.filter((x) => now - x.ms > 7 * DAY && now - x.ms <= 14 * DAY);
+  const revThisWeek = thisWeek.reduce((s, x) => s + (x.bill.total || 0), 0);
+  const revLastWeek = lastWeek.reduce((s, x) => s + (x.bill.total || 0), 0);
+
+  // Daily revenue for the last 14 days
+  const daily = new Map<string, { revenue: number; count: number }>();
+  billsWithTime
+    .filter((x) => now - x.ms <= 14 * DAY)
+    .forEach((x) => {
+      const d = new Date(x.ms);
+      const key = d.toISOString().slice(0, 10) + ` (${d.toLocaleDateString('en-GB', { weekday: 'short' })})`;
+      const cur = daily.get(key) || { revenue: 0, count: 0 };
+      cur.revenue += x.bill.total || 0;
+      cur.count += 1;
+      daily.set(key, cur);
+    });
+
+  // What sold this week vs last week, per product
+  const weekProducts = (arr: typeof billsWithTime) => {
+    const m = new Map<string, { qty: number; revenue: number }>();
+    arr.forEach((x) =>
+      (x.bill.items || []).forEach((i) => {
+        const cur = m.get(i.name) || { qty: 0, revenue: 0 };
+        cur.qty += i.quantity;
+        cur.revenue += i.total;
+        m.set(i.name, cur);
+      })
+    );
+    return m;
+  };
+  const thisWeekProd = weekProducts(thisWeek);
+  const lastWeekProd = weekProducts(lastWeek);
 
   // Top products by revenue
   const prodMap = new Map<string, { name: string; qty: number; revenue: number }>();
@@ -66,6 +102,36 @@ export function buildBusinessContext(
   lines.push(`Revenue in last 30 days: ${sym}${rev30.toFixed(2)} across ${last30.length} bills`);
   lines.push(`Total products in catalogue: ${products.length}`);
   lines.push(`Total customers: ${customers.length}`);
+
+  lines.push('');
+  lines.push('WEEK-OVER-WEEK REVENUE:');
+  lines.push(`  This week (last 7 days): ${sym}${revThisWeek.toFixed(2)} across ${thisWeek.length} bills`);
+  lines.push(`  Last week (7-14 days ago): ${sym}${revLastWeek.toFixed(2)} across ${lastWeek.length} bills`);
+  if (revLastWeek > 0) {
+    const change = ((revThisWeek - revLastWeek) / revLastWeek) * 100;
+    lines.push(`  Change: ${change >= 0 ? '+' : ''}${change.toFixed(1)}%`);
+  }
+
+  if (daily.size > 0) {
+    lines.push('');
+    lines.push('DAILY REVENUE (LAST 14 DAYS):');
+    Array.from(daily.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .forEach(([day, d]) =>
+        lines.push(`  ${day}: ${sym}${d.revenue.toFixed(2)} (${d.count} bill${d.count === 1 ? '' : 's'})`)
+      );
+  }
+
+  if (thisWeekProd.size > 0 || lastWeekProd.size > 0) {
+    lines.push('');
+    lines.push('PRODUCT SALES THIS WEEK vs LAST WEEK (qty sold):');
+    const names = new Set([...thisWeekProd.keys(), ...lastWeekProd.keys()]);
+    names.forEach((name) => {
+      const tw = thisWeekProd.get(name);
+      const lw = lastWeekProd.get(name);
+      lines.push(`  - ${name}: this week ${tw?.qty ?? 0}, last week ${lw?.qty ?? 0}`);
+    });
+  }
 
   lines.push('');
   lines.push('TOP PRODUCTS BY REVENUE:');
