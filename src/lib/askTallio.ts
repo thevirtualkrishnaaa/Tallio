@@ -210,6 +210,20 @@ export interface ChatTurn {
   text: string;
 }
 
+// Safety net: remove markdown syntax if the model uses it despite instructions
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/^#{1,6}\s+/gm, '')        // headings
+    .replace(/\*\*([^*]+)\*\*/g, '$1')  // bold
+    .replace(/\*([^*\n]+)\*/g, '$1')    // italic
+    .replace(/__([^_]+)__/g, '$1')      // bold (underscore)
+    .replace(/`([^`]+)`/g, '$1')        // inline code
+    .replace(/^\s*[*•]\s+/gm, '- ')     // bullets → dashes
+    .replace(/^---+$/gm, '')            // horizontal rules
+    .replace(/\n{3,}/g, '\n\n')         // collapse extra blank lines
+    .trim();
+}
+
 // Tried in order — if one model is overloaded (503) or out of quota (429),
 // the next one is attempted automatically.
 const MODEL_FALLBACKS = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
@@ -227,7 +241,10 @@ export async function askTallio(
     `point-of-sale app for small businesses. Answer questions using ONLY the business ` +
     `data provided below. If the data doesn't contain the answer, say so honestly and ` +
     `suggest what the user could track to get it. Keep answers short and practical, use ` +
-    `the business's currency symbol, and format numbers clearly. Do not invent figures.\n\n` +
+    `the business's currency symbol, and format numbers clearly. Do not invent figures. ` +
+    `IMPORTANT: reply in PLAIN TEXT only — no markdown. Never use asterisks, hashes, ` +
+    `backticks or underscores. For lists, start lines with "- ". For emphasis, just use ` +
+    `clear wording. Blank lines between sections are fine.\n\n` +
     `=== BUSINESS DATA SNAPSHOT ===\n${context}\n=== END DATA ===`;
 
   let lastError: any = null;
@@ -238,7 +255,7 @@ export async function askTallio(
         history: history.map((h) => ({ role: h.role, parts: [{ text: h.text }] })),
       });
       const result = await chat.sendMessage(question);
-      return result.response.text();
+      return stripMarkdown(result.response.text());
     } catch (e: any) {
       lastError = e;
       const msg = String(e?.message || '');
