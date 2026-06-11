@@ -106,6 +106,10 @@ export interface ChatTurn {
   text: string;
 }
 
+// Tried in order — if one model is overloaded (503) or out of quota (429),
+// the next one is attempted automatically.
+const MODEL_FALLBACKS = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+
 export async function askTallio(
   context: string,
   history: ChatTurn[],
@@ -114,21 +118,29 @@ export async function askTallio(
   if (!API_KEY) throw new Error('AI is not configured');
 
   const genAI = new GoogleGenerativeAI(API_KEY);
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-3.5-flash',
-    systemInstruction:
-      `You are "Tallio", a friendly, concise business analyst assistant built into a ` +
-      `point-of-sale app for small businesses. Answer questions using ONLY the business ` +
-      `data provided below. If the data doesn't contain the answer, say so honestly and ` +
-      `suggest what the user could track to get it. Keep answers short and practical, use ` +
-      `the business's currency symbol, and format numbers clearly. Do not invent figures.\n\n` +
-      `=== BUSINESS DATA SNAPSHOT ===\n${context}\n=== END DATA ===`,
-  });
+  const systemInstruction =
+    `You are "Tallio", a friendly, concise business analyst assistant built into a ` +
+    `point-of-sale app for small businesses. Answer questions using ONLY the business ` +
+    `data provided below. If the data doesn't contain the answer, say so honestly and ` +
+    `suggest what the user could track to get it. Keep answers short and practical, use ` +
+    `the business's currency symbol, and format numbers clearly. Do not invent figures.\n\n` +
+    `=== BUSINESS DATA SNAPSHOT ===\n${context}\n=== END DATA ===`;
 
-  const chat = model.startChat({
-    history: history.map((h) => ({ role: h.role, parts: [{ text: h.text }] })),
-  });
-
-  const result = await chat.sendMessage(question);
-  return result.response.text();
+  let lastError: any = null;
+  for (const modelName of MODEL_FALLBACKS) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName, systemInstruction });
+      const chat = model.startChat({
+        history: history.map((h) => ({ role: h.role, parts: [{ text: h.text }] })),
+      });
+      const result = await chat.sendMessage(question);
+      return result.response.text();
+    } catch (e: any) {
+      lastError = e;
+      const msg = String(e?.message || '');
+      // Only fall through on capacity/quota errors; anything else is real.
+      if (!msg.includes('503') && !msg.includes('429') && !msg.includes('404')) throw e;
+    }
+  }
+  throw lastError ?? new Error('All AI models are busy — please try again in a moment.');
 }
