@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  LayoutGrid, Receipt, History, Package, Users, Settings, LogOut, CreditCard, Sparkles, MessageSquare,
+  LayoutGrid, Receipt, History, Package, Users, Settings, LogOut, CreditCard, Sparkles, MessageSquare, ShieldCheck,
 } from 'lucide-react';
 import POSPage from './POSPage';
 import HistoryPage from './HistoryPage';
@@ -12,25 +12,32 @@ import DashboardPage from './DashboardPage';
 import BillingPage from './BillingPage';
 import InsightsPage from './InsightsPage';
 import AskTallioPage from './AskTallioPage';
+import TeamPage from './TeamPage';
 import DemoBanner from '../components/DemoBanner';
+import { roleLabel } from '../lib/roles';
+import type { OrgRole } from '../types';
 
-type Tab = 'dashboard' | 'insights' | 'ask' | 'pos' | 'history' | 'products' | 'customers' | 'billing' | 'settings';
+type Tab = 'dashboard' | 'insights' | 'ask' | 'pos' | 'history' | 'products' | 'customers' | 'team' | 'billing' | 'settings';
 
-const NAV: { id: Tab; label: string; icon: React.ElementType; section: string }[] = [
+// `roles` omitted = visible to everyone; otherwise restricted to those roles.
+const NAV: { id: Tab; label: string; icon: React.ElementType; section: string; roles?: OrgRole[] }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutGrid, section: 'Overview' },
   { id: 'insights', label: 'Insights', icon: Sparkles, section: 'Overview' },
   { id: 'ask', label: 'Ask Tallio', icon: MessageSquare, section: 'Overview' },
-  { id: 'pos', label: 'New bill', icon: Receipt, section: 'Billing' },
+  { id: 'pos', label: 'New bill', icon: Receipt, section: 'Billing', roles: ['owner', 'cashier'] },
   { id: 'history', label: 'Bill history', icon: History, section: 'Billing' },
   { id: 'products', label: 'Products', icon: Package, section: 'Catalogue' },
   { id: 'customers', label: 'Customers', icon: Users, section: 'Catalogue' },
-  { id: 'billing', label: 'Billing & Plan', icon: CreditCard, section: 'System' },
-  { id: 'settings', label: 'Settings', icon: Settings, section: 'System' },
+  { id: 'team', label: 'Team', icon: ShieldCheck, section: 'System', roles: ['owner'] },
+  { id: 'billing', label: 'Billing & Plan', icon: CreditCard, section: 'System', roles: ['owner'] },
+  { id: 'settings', label: 'Settings', icon: Settings, section: 'System', roles: ['owner'] },
 ];
 
 const DashboardShell: React.FC = () => {
-  const { org, logout } = useAuth();
+  const { org, role, logout } = useAuth();
   const [tab, setTab] = useState<Tab>('dashboard');
+
+  const visibleNav = NAV.filter((item) => !item.roles || (role && item.roles.includes(role)));
 
   // Let any page request navigation (e.g. "Upgrade plan" links)
   useEffect(() => {
@@ -52,11 +59,11 @@ const DashboardShell: React.FC = () => {
         <div className="px-4 py-4 border-b">
           <div className="text-base font-semibold text-gray-900">{org?.name}</div>
           <div className="text-xs text-gray-400">
-            Currency: {org?.currency.code} {org?.currency.symbol}
+            {roleLabel(role)} · {org?.currency.code} {org?.currency.symbol}
           </div>
         </div>
         <nav className="flex-1 py-2">
-          {NAV.map((item) => {
+          {visibleNav.map((item) => {
             const showSection = item.section !== lastSection;
             lastSection = item.section;
             const Icon = item.icon;
@@ -99,6 +106,7 @@ const DashboardShell: React.FC = () => {
           {tab === 'history' && <HistoryPage />}
           {tab === 'products' && <ProductsPage />}
           {tab === 'customers' && <CustomersPage />}
+          {tab === 'team' && <TeamPage />}
           {tab === 'billing' && <BillingPage />}
           {tab === 'settings' && <SettingsPage />}
         </div>

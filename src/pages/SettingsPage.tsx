@@ -42,17 +42,17 @@ const SettingsPage: React.FC = () => {
       <div className="bg-white border rounded-xl p-5 max-w-lg space-y-4">
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">Currency</label>
-          <select className="input" value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value)} disabled={role !== 'owner' && role !== 'admin'}>
+          <select className="input" value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value)} disabled={role !== 'owner'}>
             {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code} — {c.symbol}</option>)}
           </select>
           <p className="text-xs text-gray-400 mt-1">Changing currency only affects display — existing amounts are not converted.</p>
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">Default tax rate (%)</label>
-          <input type="number" min={0} max={100} className="input" value={taxRate} onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)} disabled={role !== 'owner' && role !== 'admin'} />
+          <input type="number" min={0} max={100} className="input" value={taxRate} onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)} disabled={role !== 'owner'} />
         </div>
 
-        {(role === 'owner' || role === 'admin') && (
+        {role === 'owner' && (
           <button onClick={save} disabled={saving} className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm hover:bg-gray-800 disabled:opacity-50">
             {saving ? 'Saving…' : 'Save changes'}
           </button>

@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useOrgCollection } from '../lib/useOrgCollection';
 import { orgCol, orgDoc } from '../lib/orgData';
 import { isAtLimit } from '../lib/plans';
+import { can } from '../lib/roles';
 import type { Category, Product, AttributeDef } from '../types';
 import Modal from '../components/Modal';
 
@@ -22,10 +23,11 @@ const emptyProduct = (categories: Category[]): Partial<Product> => ({
 });
 
 const ProductsPage: React.FC = () => {
-  const { org, plan } = useAuth();
+  const { org, plan, role } = useAuth();
   const { data: categories } = useOrgCollection<Category>('categories');
   const { data: products, loading } = useOrgCollection<Product>('products');
 
+  const canEdit = can.manageCatalogue(role);
   const atProductLimit = isAtLimit(plan, 'products', products.length);
 
   const [showProductModal, setShowProductModal] = useState(false);
@@ -108,21 +110,23 @@ const ProductsPage: React.FC = () => {
           <h2 className="text-2xl font-semibold text-gray-900">Products</h2>
           <p className="text-sm text-gray-500">Manage your catalogue — any product or service type.</p>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowCategoryModal(true)}
-            className="border px-4 py-2 rounded-lg text-sm hover:bg-gray-50"
-          >
-            + Category
-          </button>
-          <button
-            onClick={openAddProduct}
-            disabled={categories.length === 0 || atProductLimit}
-            className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm hover:bg-gray-800 flex items-center gap-1.5 disabled:opacity-40"
-          >
-            <Plus size={16} /> Add product
-          </button>
-        </div>
+        {canEdit && (
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowCategoryModal(true)}
+              className="border px-4 py-2 rounded-lg text-sm hover:bg-gray-50"
+            >
+              + Category
+            </button>
+            <button
+              onClick={openAddProduct}
+              disabled={categories.length === 0 || atProductLimit}
+              className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm hover:bg-gray-800 flex items-center gap-1.5 disabled:opacity-40"
+            >
+              <Plus size={16} /> Add product
+            </button>
+          </div>
+        )}
       </div>
 
       {atProductLimit && (
@@ -165,7 +169,7 @@ const ProductsPage: React.FC = () => {
                 <th className="text-right font-medium px-4 py-3">Cost</th>
                 <th className="text-right font-medium px-4 py-3">Stock</th>
                 <th className="text-left font-medium px-4 py-3">Status</th>
-                <th className="text-center font-medium px-4 py-3">Actions</th>
+                {canEdit && <th className="text-center font-medium px-4 py-3">Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -186,12 +190,14 @@ const ProductsPage: React.FC = () => {
                         {oos ? 'Out of stock' : low ? 'Low stock' : 'In stock'}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-center gap-2">
-                        <button onClick={() => openEditProduct(p)} className="text-gray-400 hover:text-gray-800"><Edit3 size={16} /></button>
-                        <button onClick={() => removeProduct(p.id)} className="text-gray-400 hover:text-red-600"><Trash2 size={16} /></button>
-                      </div>
-                    </td>
+                    {canEdit && (
+                      <td className="px-4 py-3">
+                        <div className="flex justify-center gap-2">
+                          <button onClick={() => openEditProduct(p)} className="text-gray-400 hover:text-gray-800"><Edit3 size={16} /></button>
+                          <button onClick={() => removeProduct(p.id)} className="text-gray-400 hover:text-red-600"><Trash2 size={16} /></button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 );
               })}

@@ -5,127 +5,149 @@ service cloud.firestore {
 
     // ── helpers ────────────────────────────────────────────────────────────
 
-    // Is the request from a signed-in user?
     function isAuth() {
       return request.auth != null;
     }
 
-    // Is this request from the given uid?
     function isUser(uid) {
       return isAuth() && request.auth.uid == uid;
     }
 
-    // Does the signed-in user belong to this org?
+    function memberPath(orgId) {
+      return /databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid);
+    }
+
+    // Belongs to the org (any role)
     function isMember(orgId) {
-      return isAuth() &&
-        exists(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid));
+      return isAuth() && exists(memberPath(orgId));
     }
 
-    // Is the signed-in user an owner of this org?
+    function roleIn(orgId, roles) {
+      return isMember(orgId) && get(memberPath(orgId)).data.role in roles;
+    }
+
+    // Owner: full control
     function isOwner(orgId) {
-      return isAuth() &&
-        get(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid)).data.role == 'owner';
+      return roleIn(orgId, ['owner']);
     }
 
-    // Is the signed-in user an owner OR manager of this org?
-    function isManager(orgId) {
-      return isAuth() &&
-        get(/databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid)).data.role in ['owner', 'manager'];
+    // Can ring up bills / manage customers (owner or cashier)
+    function canBill(orgId) {
+      return roleIn(orgId, ['owner', 'cashier']);
+    }
+
+    // The org's recorded creator (used during onboarding, before any role exists)
+    function isOrgCreator(orgId) {
+      return isAuth()
+        && exists(/databases/$(database)/documents/orgs/$(orgId))
+        && get(/databases/$(database)/documents/orgs/$(orgId)).data.ownerId == request.auth.uid;
+    }
+
+    // A pending invite exists for this user's email, matching org + requested role
+    function matchesInvite(orgId) {
+      return request.auth.token.email != null
+        && exists(/databases/$(database)/documents/invites/$(request.auth.token.email.lower()))
+        && get(/databases/$(database)/documents/invites/$(request.auth.token.email.lower())).data.orgId == orgId
+        && get(/databases/$(database)/documents/invites/$(request.auth.token.email.lower())).data.role == request.resource.data.role;
+    }
+
+    // Update touches only the listed keys
+    function onlyChanges(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
     }
 
 
     // ── users/{uid} ────────────────────────────────────────────────────────
-    // Each user can only read/write their own pointer doc.
-
     match /users/{uid} {
       allow read, write: if isUser(uid);
     }
 
 
-    // ── orgs/{orgId} ───────────────────────────────────────────────────────
-    // Any member can read the org doc.
-    // Only the owner can update org settings.
-    // Any authenticated user can create a new org (during onboarding).
+    // ── invites/{email} (top-level, looked up by the invitee on login) ──────
+    match /invites/{email} {
+      function isOwnEmail() {
+        return request.auth.token.email != null && request.auth.token.email.lower() == email;
+      }
+      allow read:   if isAuth() && (isOwnEmail() || isOwner(resource.data.orgId));
+      allow create: if isOwner(request.resource.data.orgId);
+      allow update: if isOwner(request.resource.data.orgId);
+      allow delete: if isAuth() && (isOwnEmail() || isOwner(resource.data.orgId));
+    }
 
+
+    // ── orgs/{orgId} ───────────────────────────────────────────────────────
     match /orgs/{orgId} {
       allow read:   if isMember(orgId);
       allow create: if isAuth();
       allow update: if isOwner(orgId);
-      allow delete: if false; // orgs are never deleted through the client
+      allow delete: if false;
 
 
-      // ── members subcollection ─────────────────────────────────────────
-      // Members can read the members list.
-      // Only owners can add/remove/update members.
-
+      // ── members ─────────────────────────────────────────────────────────
       match /members/{memberId} {
         allow read:   if isMember(orgId);
-        allow create: if isUser(memberId) || isOwner(orgId); // self during onboarding, or owner invites
+        // Self-join only during onboarding (org creator) or via a matching
+        // invite; otherwise only the owner can manage members.
+        allow create: if (isUser(memberId) && isOrgCreator(orgId) && request.resource.data.role == 'owner')
+                       || (isUser(memberId) && matchesInvite(orgId))
+                       || isOwner(orgId);
+        allow update: if isOwner(orgId);
+        allow delete: if isOwner(orgId);
+      }
+
+      // Owner-visible mirror of pending invites (for the Team page)
+      match /pendingInvites/{key} {
+        allow read, write: if isOwner(orgId);
+      }
+
+
+      // ── categories ────────────────────────────────────────────────────
+      match /categories/{categoryId} {
+        allow read:                   if isMember(orgId);
+        allow create, update, delete: if isOwner(orgId);
+      }
+
+
+      // ── products ──────────────────────────────────────────────────────
+      // Owner manages the catalogue. Cashiers may ONLY adjust stock (and the
+      // updatedAt timestamp) — this is what a checkout's stock decrement does.
+      match /products/{productId} {
+        allow read:           if isMember(orgId);
+        allow create, delete: if isOwner(orgId);
+        allow update:         if isOwner(orgId)
+                               || (canBill(orgId) && onlyChanges(['stock', 'updatedAt']));
+      }
+
+
+      // ── bills ─────────────────────────────────────────────────────────
+      match /bills/{billId} {
+        allow read:   if isMember(orgId);
+        allow create: if canBill(orgId);
         allow update: if isOwner(orgId);
         allow delete: if isOwner(orgId);
       }
 
 
-      // ── categories ────────────────────────────────────────────────────
-      // All members can read. Owners/managers can write.
-
-      match /categories/{categoryId} {
-        allow read:             if isMember(orgId);
-        allow create, update:   if isManager(orgId);
-        allow delete:           if isManager(orgId);
-      }
-
-
-      // ── products ──────────────────────────────────────────────────────
-      // All members can read. Owners/managers can write.
-
-      match /products/{productId} {
-        allow read:             if isMember(orgId);
-        allow create, update:   if isManager(orgId);
-        allow delete:           if isManager(orgId);
-      }
-
-
-      // ── bills (sales) ─────────────────────────────────────────────────
-      // All members can read and create (cashiers ring up bills).
-      // Stock decrements during checkout also update products (covered above).
-      // Only owners can delete (void a bill).
-
-      match /bills/{billId} {
-        allow read:   if isMember(orgId);
-        allow create: if isMember(orgId);
-        allow update: if isManager(orgId);
-        allow delete: if isOwner(orgId);
-      }
-
-
       // ── customers ─────────────────────────────────────────────────────
-      // All members can read. Owners/managers can write.
-
       match /customers/{customerId} {
-        allow read:             if isMember(orgId);
-        allow create, update:   if isManager(orgId);
-        allow delete:           if isManager(orgId);
+        allow read:           if isMember(orgId);
+        allow create, update: if canBill(orgId);
+        allow delete:         if isOwner(orgId);
       }
 
 
       // ── expenses ──────────────────────────────────────────────────────
-      // All members can read. Owners/managers can write.
-
       match /expenses/{expenseId} {
-        allow read:             if isMember(orgId);
-        allow create, update:   if isManager(orgId);
-        allow delete:           if isOwner(orgId);
+        allow read:                   if isMember(orgId);
+        allow create, update, delete: if isOwner(orgId);
       }
 
 
       // ── settings ──────────────────────────────────────────────────────
-      // All members can read. Only owners can change settings.
-
       match /settings/{docId} {
-        allow read:             if isMember(orgId);
-        allow create, update:   if isOwner(orgId);
-        allow delete:           if false;
+        allow read:           if isMember(orgId);
+        allow create, update: if isOwner(orgId);
+        allow delete:         if false;
       }
 
     } // end orgs/{orgId}

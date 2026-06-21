@@ -10,7 +10,9 @@ import type { User } from 'firebase/auth';
 import {
   doc,
   getDoc,
+  getDocs,
   setDoc,
+  deleteDoc,
   serverTimestamp,
   collection,
 } from 'firebase/firestore';
@@ -18,7 +20,9 @@ import { auth, db } from '../lib/firebase';
 import { seedDemoOrg } from '../lib/demoSeed';
 import { getPlan } from '../lib/plans';
 import type { Plan, PlanId } from '../lib/plans';
-import type { Organization, OrgRole } from '../types';
+import type { Organization, OrgRole, OrgMember, Invite } from '../types';
+
+const inviteKey = (email: string) => email.trim().toLowerCase();
 
 interface AuthContextValue {
   user: User | null;
@@ -37,6 +41,13 @@ interface AuthContextValue {
   createOrganization: (name: string, currencyCode: string, currencySymbol: string, defaultTaxRate: number) => Promise<void>;
   changePlan: (planId: PlanId) => Promise<void>;
   refreshOrg: () => Promise<void>;
+  // Team management (owner only)
+  listMembers: () => Promise<OrgMember[]>;
+  listInvites: () => Promise<Invite[]>;
+  inviteMember: (email: string, role: OrgRole) => Promise<void>;
+  cancelInvite: (email: string) => Promise<void>;
+  updateMemberRole: (memberId: string, role: OrgRole) => Promise<void>;
+  removeMember: (memberId: string) => Promise<void>;
 }
 
 // 24-hour demo window
@@ -81,17 +92,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const demoExpired = isDemo && demoMsLeft !== null && demoMsLeft <= 0;
 
+  // If the user has no org yet but was invited by email, join them automatically.
+  const acceptPendingInvite = async (u: User): Promise<string | null> => {
+    if (!u.email) return null;
+    const invSnap = await getDoc(doc(db, 'invites', inviteKey(u.email)));
+    if (!invSnap.exists()) return null;
+    const inv = invSnap.data() as Invite;
+
+    // Create our own member doc with the invited role (validated by rules
+    // against the invite), point users/{uid} at the org, and clear the invite.
+    await setDoc(doc(db, 'orgs', inv.orgId, 'members', u.uid), {
+      userId: u.uid,
+      email: u.email,
+      role: inv.role,
+      joinedAt: serverTimestamp(),
+    });
+    await setDoc(
+      doc(db, 'users', u.uid),
+      { orgId: inv.orgId, role: inv.role, email: u.email },
+      { merge: true }
+    );
+    await deleteDoc(doc(db, 'invites', inviteKey(u.email)));
+    return inv.orgId;
+  };
+
   const loadOrgForUser = async (u: User) => {
     setOrgLoading(true);
     try {
-      // Find org membership: we store a lightweight pointer doc at users/{uid}
       const userDoc = await getDoc(doc(db, 'users', u.uid));
-      if (userDoc.exists() && userDoc.data().orgId) {
-        const orgId = userDoc.data().orgId as string;
+      let orgId: string | null =
+        userDoc.exists() && userDoc.data().orgId ? (userDoc.data().orgId as string) : null;
+
+      // No org yet — check for an invitation addressed to this email.
+      if (!orgId) {
+        orgId = await acceptPendingInvite(u);
+      }
+
+      if (orgId) {
         const orgSnap = await getDoc(doc(db, 'orgs', orgId));
-        if (orgSnap.exists()) {
+        // Role's source of truth is the member doc (owner can change it).
+        const memberSnap = await getDoc(doc(db, 'orgs', orgId, 'members', u.uid));
+        if (orgSnap.exists() && memberSnap.exists()) {
           setOrg({ id: orgSnap.id, ...(orgSnap.data() as any) });
-          setRole((userDoc.data().role as OrgRole) || 'staff');
+          setRole((memberSnap.data().role as OrgRole) || 'viewer');
         } else {
           setOrg(null);
           setRole(null);
@@ -206,13 +249,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await loadOrgForUser(user);
   };
 
+  // ── Team management (owner only; also enforced by security rules) ────────
+  const listMembers = async (): Promise<OrgMember[]> => {
+    if (!org) return [];
+    const snap = await getDocs(collection(db, 'orgs', org.id, 'members'));
+    return snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+  };
+
+  const listInvites = async (): Promise<Invite[]> => {
+    if (!org) return [];
+    const snap = await getDocs(collection(db, 'orgs', org.id, 'pendingInvites'));
+    return snap.docs.map((d) => d.data() as Invite);
+  };
+
+  const inviteMember = async (email: string, role: OrgRole) => {
+    if (!user || !org) throw new Error('No active organisation');
+    const key = inviteKey(email);
+    const payload: Invite = {
+      email: key,
+      orgId: org.id,
+      orgName: org.name,
+      role,
+      invitedBy: user.uid,
+      createdAt: serverTimestamp(),
+    };
+    // Global invite (looked up by the invitee on login) + a mirror under the
+    // org so the owner can list/cancel pending invites.
+    await setDoc(doc(db, 'invites', key), payload);
+    await setDoc(doc(db, 'orgs', org.id, 'pendingInvites', key), payload);
+  };
+
+  const cancelInvite = async (email: string) => {
+    if (!org) throw new Error('No active organisation');
+    const key = inviteKey(email);
+    await deleteDoc(doc(db, 'invites', key));
+    await deleteDoc(doc(db, 'orgs', org.id, 'pendingInvites', key));
+  };
+
+  const updateMemberRole = async (memberId: string, role: OrgRole) => {
+    if (!org) throw new Error('No active organisation');
+    await setDoc(doc(db, 'orgs', org.id, 'members', memberId), { role }, { merge: true });
+  };
+
+  const removeMember = async (memberId: string) => {
+    if (!org) throw new Error('No active organisation');
+    if (memberId === org.ownerId) throw new Error('The owner cannot be removed');
+    await deleteDoc(doc(db, 'orgs', org.id, 'members', memberId));
+  };
+
   const refreshOrg = async () => {
     if (user) await loadOrgForUser(user);
   };
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, org, role, orgLoading, plan, isDemo, demoExpired, demoMsLeft, login, register, startDemo, logout, createOrganization, changePlan, refreshOrg }}
+      value={{ user, loading, org, role, orgLoading, plan, isDemo, demoExpired, demoMsLeft, login, register, startDemo, logout, createOrganization, changePlan, refreshOrg, listMembers, listInvites, inviteMember, cancelInvite, updateMemberRole, removeMember }}
     >
       {children}
     </AuthContext.Provider>

@@ -4,14 +4,16 @@ import { Plus, Trash2, Edit3 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useOrgCollection } from '../lib/useOrgCollection';
 import { orgCol, orgDoc } from '../lib/orgData';
+import { can } from '../lib/roles';
 import type { Customer } from '../types';
 import Modal from '../components/Modal';
 
 const empty: Partial<Customer> = { name: '', phone: '', email: '', address: '', balance: 0, totalSpend: 0 };
 
 const CustomersPage: React.FC = () => {
-  const { org } = useAuth();
+  const { org, role } = useAuth();
   const { data: customers, loading } = useOrgCollection<Customer>('customers');
+  const canEdit = can.manageCustomers(role);
   const [show, setShow] = useState(false);
   const [editing, setEditing] = useState<Partial<Customer> | null>(null);
 
@@ -45,9 +47,11 @@ const CustomersPage: React.FC = () => {
           <h2 className="text-2xl font-semibold text-gray-900">Customers</h2>
           <p className="text-sm text-gray-500">Track who you sell to and their balances.</p>
         </div>
-        <button onClick={openAdd} className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm hover:bg-gray-800 flex items-center gap-1.5">
-          <Plus size={16} /> Add customer
-        </button>
+        {canEdit && (
+          <button onClick={openAdd} className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm hover:bg-gray-800 flex items-center gap-1.5">
+            <Plus size={16} /> Add customer
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border">
@@ -63,7 +67,7 @@ const CustomersPage: React.FC = () => {
                 <th className="text-left font-medium px-4 py-3">Contact</th>
                 <th className="text-right font-medium px-4 py-3">Total spend</th>
                 <th className="text-right font-medium px-4 py-3">Balance due</th>
-                <th className="text-center font-medium px-4 py-3">Actions</th>
+                {canEdit && <th className="text-center font-medium px-4 py-3">Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -73,12 +77,14 @@ const CustomersPage: React.FC = () => {
                   <td className="px-4 py-3 text-gray-600">{c.phone || c.email || '—'}</td>
                   <td className="px-4 py-3 text-right">{currency}{Number(c.totalSpend || 0).toFixed(2)}</td>
                   <td className="px-4 py-3 text-right">{currency}{Number(c.balance || 0).toFixed(2)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-center gap-2">
-                      <button onClick={() => openEdit(c)} className="text-gray-400 hover:text-gray-800"><Edit3 size={16} /></button>
-                      <button onClick={() => remove(c.id)} className="text-gray-400 hover:text-red-600"><Trash2 size={16} /></button>
-                    </div>
-                  </td>
+                  {canEdit && (
+                    <td className="px-4 py-3">
+                      <div className="flex justify-center gap-2">
+                        <button onClick={() => openEdit(c)} className="text-gray-400 hover:text-gray-800"><Edit3 size={16} /></button>
+                        <button onClick={() => remove(c.id)} className="text-gray-400 hover:text-red-600"><Trash2 size={16} /></button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

@@ -9,7 +9,7 @@
 //   - Club Sandwich has the best margin but stock is nearly out (restock urgency)
 //   - Earl Grey Tea has never sold once (dead stock)
 //   - Clara Singh is a loyal weekly big spender; Ben Carter has unpaid bills
-import { writeBatch, doc, collection, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { writeBatch, doc, setDoc, collection, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from './firebase';
 
 // Deterministic pseudo-random so every demo looks sensible (no flaky seeds)
@@ -72,12 +72,11 @@ const CUSTOMERS = [
 const DOW_MULT = [1.1, 0.55, 0.8, 0.9, 1.0, 1.2, 1.7]; // Sun..Sat
 
 export async function seedDemoOrg(orgId: string, userId: string) {
-  // ── Phase 1: org + member doc ───────────────────────────────────────────
-  // Must commit first so security rules (isManager) can see the member doc
-  // before we write catalogue data in phase 2.
-  const setup = writeBatch(db);
-
-  setup.set(doc(db, 'orgs', orgId), {
+  // ── Phase 1: org doc, THEN member doc ───────────────────────────────────
+  // The org must be committed before the member doc, so the members-create
+  // rule (isOrgCreator) can see the org's ownerId. After that, the member doc
+  // must exist before catalogue writes so role-based rules pass.
+  await setDoc(doc(db, 'orgs', orgId), {
     name: 'Demo Store',
     currency: { code: 'GBP', symbol: '£' },
     defaultTaxRate: 20,
@@ -87,14 +86,12 @@ export async function seedDemoOrg(orgId: string, userId: string) {
     createdAt: serverTimestamp(),
   });
 
-  setup.set(doc(db, 'orgs', orgId, 'members', userId), {
+  await setDoc(doc(db, 'orgs', orgId, 'members', userId), {
     userId,
     email: 'demo@tallio.app',
     role: 'owner',
     joinedAt: serverTimestamp(),
   });
-
-  await setup.commit();
 
   // ── Phase 2: catalogue + customers + 90 days of bills ────────────────────
   const rng = makeRng(42);

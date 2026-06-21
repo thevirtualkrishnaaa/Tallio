@@ -16,13 +16,24 @@ export interface Organization {
   createdAt: any;
 }
 
-export type OrgRole = 'owner' | 'admin' | 'staff';
+export type OrgRole = 'owner' | 'cashier' | 'viewer';
 
 export interface OrgMember {
+  id?: string;
   userId: string;
   email: string;
   role: OrgRole;
   joinedAt: any;
+}
+
+// A pending invite, stored at top-level invites/{emailLowercased}
+export interface Invite {
+  email: string;
+  orgId: string;
+  orgName: string;
+  role: OrgRole;
+  invitedBy: string;
+  createdAt: any;
 }
 
 // Defines a custom field that products in a category can carry
