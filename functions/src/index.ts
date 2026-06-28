@@ -2,6 +2,9 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import Anthropic from '@anthropic-ai/sdk';
 
+// Stripe billing functions (checkout + webhook)
+export { createCheckoutSession, stripeWebhook } from './stripe.js';
+
 // The Claude API key lives in Google Secret Manager — never shipped to the browser.
 // Set it once with:  firebase functions:secrets:set ANTHROPIC_API_KEY
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');

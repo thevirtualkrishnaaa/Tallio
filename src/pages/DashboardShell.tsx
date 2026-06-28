@@ -34,8 +34,9 @@ const NAV: { id: Tab; label: string; icon: React.ElementType; section: string; r
 ];
 
 const DashboardShell: React.FC = () => {
-  const { org, role, logout } = useAuth();
+  const { org, role, logout, refreshOrg } = useAuth();
   const [tab, setTab] = useState<Tab>('dashboard');
+  const [billingMsg, setBillingMsg] = useState('');
 
   const visibleNav = NAV.filter((item) => !item.roles || (role && item.roles.includes(role)));
 
@@ -49,11 +50,36 @@ const DashboardShell: React.FC = () => {
     return () => window.removeEventListener('tallio:nav', handler);
   }, []);
 
+  // Handle return from Stripe Checkout (?billing=success|cancelled)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const billing = params.get('billing');
+    if (!billing) return;
+    if (billing === 'success') {
+      setBillingMsg('🎉 Payment successful! Your plan is being activated…');
+      setTab('billing');
+      // The webhook updates the plan server-side; refresh a moment later.
+      setTimeout(() => refreshOrg(), 2500);
+      setTimeout(() => setBillingMsg(''), 8000);
+    } else if (billing === 'cancelled') {
+      setBillingMsg('Checkout cancelled — no charge was made.');
+      setTab('billing');
+      setTimeout(() => setBillingMsg(''), 6000);
+    }
+    // Clean the query param from the URL.
+    window.history.replaceState({}, '', window.location.pathname);
+  }, [refreshOrg]);
+
   let lastSection = '';
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <DemoBanner />
+      {billingMsg && (
+        <div className="bg-green-50 border-b border-green-200 text-green-800 text-sm px-4 py-2 text-center">
+          {billingMsg}
+        </div>
+      )}
       <div className="flex flex-1 min-h-0">
       <aside className="w-56 bg-white border-r flex flex-col">
         <div className="px-4 py-4 border-b">

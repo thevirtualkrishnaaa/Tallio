@@ -3,20 +3,22 @@ import { Check } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { PLAN_ORDER, PLANS } from '../lib/plans';
 import type { PlanId } from '../lib/plans';
+import { startCheckout } from '../lib/stripe';
 
 const BillingPage: React.FC = () => {
-  const { plan, changePlan, isDemo } = useAuth();
+  const { org, plan, isDemo } = useAuth();
   const [busy, setBusy] = useState<PlanId | null>(null);
-  const [done, setDone] = useState<PlanId | null>(null);
+  const [error, setError] = useState('');
 
   const select = async (planId: PlanId) => {
-    if (planId === plan.id || isDemo) return;
+    if (planId === plan.id || isDemo || !org) return;
+    setError('');
     setBusy(planId);
-    setDone(null);
     try {
-      await changePlan(planId);
-      setDone(planId);
-    } finally {
+      // Redirects to Stripe Checkout; on success Stripe's webhook updates the plan.
+      await startCheckout(org.id, planId);
+    } catch (e: any) {
+      setError(e?.message || 'Could not start checkout.');
       setBusy(null);
     }
   };
@@ -76,18 +78,19 @@ const BillingPage: React.FC = () => {
                 {current
                   ? 'Current plan'
                   : busy === p.id
-                  ? 'Switching…'
-                  : done === p.id
-                  ? 'Switched ✓'
-                  : `Switch to ${p.name}`}
+                  ? 'Redirecting…'
+                  : `Subscribe — ${p.priceLabel}/mo`}
               </button>
             </div>
           );
         })}
       </div>
 
+      {error && <p className="text-sm text-red-600 mt-4">{error}</p>}
+
       <p className="text-xs text-gray-400 mt-6">
-        💳 Payments aren't wired up yet — switching plans is instant for now. Stripe checkout is coming soon.
+        💳 Secure checkout by Stripe. You'll be redirected to Stripe to enter payment details —
+        Tallio never sees your card number.
       </p>
     </div>
   );
