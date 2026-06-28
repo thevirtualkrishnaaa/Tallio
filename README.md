@@ -87,8 +87,9 @@
 
 ### 🚀 Pre-launch must-dos
 - [x] Move AI key server-side (Cloud Function + Secret Manager)
-- [ ] **Real Stripe payments** — make plan subscriptions charge money (Blaze enabled ✓)
-- [ ] **Rotate exposed keys** — GitHub token, old Gemini key (delete), Claude key
+- [x] **Rotate exposed keys** — GitHub token, Gemini key (deleted), Claude key; Anthropic spend limit set
+- [x] **Real Stripe payments** — checkout + webhook live in **Test mode**, plan auto-updates on payment
+- [ ] **Flip Stripe to Live** at launch — create live products, swap to `sk_live_` key + live webhook secret, update product IDs in `functions/src/stripe.ts`
 
 ---
 
