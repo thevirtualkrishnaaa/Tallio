@@ -1,19 +1,17 @@
 // "Ask Tallio" — conversational AI grounded in the org's own data.
-// Uses Google Gemini (free tier) via @google/generative-ai.
-//
-// NOTE: the API key is read from import.meta.env.VITE_GEMINI_API_KEY and is
-// bundled client-side. That's acceptable for an MVP/demo. Before a real
-// launch, move this call behind a Firebase Cloud Function so the key stays
-// server-side.
+// Powered by Claude (Anthropic) via a Firebase Cloud Function: the API key
+// lives server-side in Secret Manager and is never shipped to the browser.
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { app } from './firebase';
 import { buildInsights } from './insights';
 import type { Bill, Product, Customer, Organization } from '../types';
 
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
+const functions = getFunctions(app, 'us-central1');
 
+// The key now lives server-side, so the client is always "configured".
 export function isAiConfigured(): boolean {
-  return !!API_KEY && API_KEY.length > 10;
+  return true;
 }
 
 function toMs(ts: any): number | null {
@@ -224,44 +222,29 @@ function stripMarkdown(text: string): string {
     .trim();
 }
 
-// Tried in order — if one model is overloaded (503) or out of quota (429),
-// the next one is attempted automatically.
-const MODEL_FALLBACKS = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
-
+// Calls the askTallio Cloud Function, which talks to Claude server-side.
+// The history's 'model' role is mapped to Anthropic's 'assistant'.
 export async function askTallio(
   context: string,
   history: ChatTurn[],
   question: string
 ): Promise<string> {
-  if (!API_KEY) throw new Error('AI is not configured');
+  const call = httpsCallable<
+    { context: string; history: { role: 'user' | 'assistant'; text: string }[]; question: string },
+    { answer: string }
+  >(functions, 'askTallio');
 
-  const genAI = new GoogleGenerativeAI(API_KEY);
-  const systemInstruction =
-    `You are "Tallio", a friendly, concise business analyst assistant built into a ` +
-    `point-of-sale app for small businesses. Answer questions using ONLY the business ` +
-    `data provided below. If the data doesn't contain the answer, say so honestly and ` +
-    `suggest what the user could track to get it. Keep answers short and practical, use ` +
-    `the business's currency symbol, and format numbers clearly. Do not invent figures. ` +
-    `IMPORTANT: reply in PLAIN TEXT only — no markdown. Never use asterisks, hashes, ` +
-    `backticks or underscores. For lists, start lines with "- ". For emphasis, just use ` +
-    `clear wording. Blank lines between sections are fine.\n\n` +
-    `=== BUSINESS DATA SNAPSHOT ===\n${context}\n=== END DATA ===`;
-
-  let lastError: any = null;
-  for (const modelName of MODEL_FALLBACKS) {
-    try {
-      const model = genAI.getGenerativeModel({ model: modelName, systemInstruction });
-      const chat = model.startChat({
-        history: history.map((h) => ({ role: h.role, parts: [{ text: h.text }] })),
-      });
-      const result = await chat.sendMessage(question);
-      return stripMarkdown(result.response.text());
-    } catch (e: any) {
-      lastError = e;
-      const msg = String(e?.message || '');
-      // Only fall through on capacity/quota errors; anything else is real.
-      if (!msg.includes('503') && !msg.includes('429') && !msg.includes('404')) throw e;
-    }
+  try {
+    const res = await call({
+      context,
+      history: history.map((h) => ({
+        role: h.role === 'model' ? 'assistant' : 'user',
+        text: h.text,
+      })),
+      question,
+    });
+    return stripMarkdown(res.data.answer || '');
+  } catch (e: any) {
+    throw new Error(e?.message || 'Tallio AI is unavailable right now — please try again.');
   }
-  throw lastError ?? new Error('All AI models are busy — please try again in a moment.');
 }
