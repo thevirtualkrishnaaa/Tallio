@@ -67,20 +67,28 @@
 ### 🤖 Phase 3 — AI Layer
 - [x] **AI Sales Insights** — auto natural-language insights (revenue trend, best seller, best day, avg basket, top customer)
 - [x] **Smart Restock Alerts** — velocity-based "runs out in N days" predictions
-- [x] **Ask Tallio** — chat interface powered by Google Gemini, grounded in live data
+- [x] **Ask Tallio** — chat interface powered by **Claude (Anthropic)**, grounded in live data, served via a secure Cloud Function
+- [x] Move AI key behind a Cloud Function (key in Secret Manager, never client-side)
+- [ ] **Claude-written Insights narrative** — let Claude generate the richer, analyst-style commentary on the Insights page too (currently local math); reuse the same `askTallio` function
 - [ ] **Receipt Scan (OCR)** — scan paper receipts to auto-log expenses
 - [ ] **AI-generated reports** — exportable PDF summaries
-- [ ] Move Gemini key behind a Cloud Function (pre-launch hardening)
 
 ---
 
 ### 🔧 Phase 4 — Power Features
-- [ ] Multi-user / staff roles (owner, cashier, viewer)
+- [x] Multi-user / staff roles (owner, cashier, viewer)
 - [ ] GST / tax calculation & invoice generation
 - [ ] WhatsApp / SMS receipt sharing
 - [ ] Expense tracking (not just sales)
 - [ ] Mobile PWA (installable on phone)
 - [ ] Export data to Excel / CSV
+
+---
+
+### 🚀 Pre-launch must-dos
+- [x] Move AI key server-side (Cloud Function + Secret Manager)
+- [ ] **Real Stripe payments** — make plan subscriptions charge money (Blaze enabled ✓)
+- [ ] **Rotate exposed keys** — GitHub token, old Gemini key (delete), Claude key
 
 ---
 
