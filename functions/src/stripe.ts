@@ -12,17 +12,26 @@ const STRIPE_WEBHOOK_SECRET = defineSecret('STRIPE_WEBHOOK_SECRET');
 
 const APP_URL = 'https://talliofinance.web.app';
 
-// Stripe Price IDs (TEST mode). Replace with live price IDs at launch.
-// Every plan is a monthly recurring GBP price created in the Stripe dashboard.
-const PRICE_IDS: Record<string, string> = {
-  starter: 'REPLACE_WITH_STARTER_PRICE_ID',
-  growth: 'REPLACE_WITH_GROWTH_PRICE_ID',
-  scale: 'REPLACE_WITH_SCALE_PRICE_ID',
+// Stripe Product IDs (TEST mode). Each product has one active monthly GBP
+// price; the checkout function resolves the price at runtime. Replace with
+// live product IDs at launch.
+const PRODUCT_IDS: Record<string, string> = {
+  starter: 'prod_UmsXtWqCEEcAW6',
+  growth: 'prod_UmsXJyuLALZbTw',
+  scale: 'prod_UmsYAW9HAkYeiv',
 };
 
-const PLAN_BY_PRICE: Record<string, string> = Object.fromEntries(
-  Object.entries(PRICE_IDS).map(([plan, price]) => [price, plan])
+const PLAN_BY_PRODUCT: Record<string, string> = Object.fromEntries(
+  Object.entries(PRODUCT_IDS).map(([plan, product]) => [product, plan])
 );
+
+// Look up the active price for a plan's product.
+async function priceForPlan(stripe: Stripe, planId: string): Promise<string | null> {
+  const productId = PRODUCT_IDS[planId];
+  if (!productId) return null;
+  const prices = await stripe.prices.list({ product: productId, active: true, limit: 1 });
+  return prices.data[0]?.id ?? null;
+}
 
 type PlanId = 'starter' | 'growth' | 'scale';
 
@@ -34,9 +43,8 @@ export const createCheckoutSession = onCall<{ orgId: string; planId: PlanId }>(
       throw new HttpsError('unauthenticated', 'Please sign in.');
     }
     const { orgId, planId } = request.data ?? ({} as { orgId: string; planId: PlanId });
-    const priceId = PRICE_IDS[planId];
-    if (!orgId || !priceId || priceId.startsWith('REPLACE_')) {
-      throw new HttpsError('invalid-argument', 'Unknown plan or billing not configured.');
+    if (!orgId || !PRODUCT_IDS[planId]) {
+      throw new HttpsError('invalid-argument', 'Unknown plan.');
     }
 
     // Only the org owner may start a subscription.
@@ -46,6 +54,11 @@ export const createCheckoutSession = onCall<{ orgId: string; planId: PlanId }>(
     }
 
     const stripe = new Stripe(STRIPE_SECRET_KEY.value());
+
+    const priceId = await priceForPlan(stripe, planId);
+    if (!priceId) {
+      throw new HttpsError('failed-precondition', 'No active price found for this plan.');
+    }
 
     // Reuse or create a Stripe customer for this org.
     const orgRef = db.doc(`orgs/${orgId}`);
@@ -120,8 +133,8 @@ export const stripeWebhook = onRequest(
         }
         case 'customer.subscription.updated': {
           const sub = event.data.object as Stripe.Subscription;
-          const priceId = sub.items.data[0]?.price.id;
-          const plan = PLAN_BY_PRICE[priceId];
+          const product = sub.items.data[0]?.price.product;
+          const plan = typeof product === 'string' ? PLAN_BY_PRODUCT[product] : undefined;
           const active = sub.status === 'active' || sub.status === 'trialing';
           if (typeof sub.customer === 'string' && plan && active) {
             await setPlanForCustomer(sub.customer, plan, { stripeStatus: sub.status });
