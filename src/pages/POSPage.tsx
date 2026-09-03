@@ -6,7 +6,9 @@ import { useOrgCollection } from '../lib/useOrgCollection';
 import { db } from '../lib/firebase';
 import { orgCol, orgDoc } from '../lib/orgData';
 import { isAtLimit } from '../lib/plans';
+import { toMs } from '../lib/insights';
 import type { Product, Customer, BillItem, Bill } from '../types';
+import { errorMessage } from '../lib/errors';
 
 interface CartLine {
   productId: string;
@@ -31,8 +33,7 @@ const POSPage: React.FC = () => {
   const billsThisMonth = useMemo(() => {
     const now = new Date();
     return bills.filter((b) => {
-      const ts: any = b.createdAt;
-      const ms = ts?.toMillis ? ts.toMillis() : ts?.seconds ? ts.seconds * 1000 : null;
+      const ms = toMs(b.createdAt);
       if (ms == null) return false;
       const d = new Date(ms);
       return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
@@ -40,9 +41,6 @@ const POSPage: React.FC = () => {
   }, [bills]);
 
   const atSalesLimit = isAtLimit(plan, 'salesPerMonth', billsThisMonth);
-
-  if (!org || !user) return null;
-  const currency = org.currency.symbol;
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -91,6 +89,12 @@ const POSPage: React.FC = () => {
         .filter(Boolean) as { product: Product; qty: number; lineTotal: number }[],
     [cart, products]
   );
+
+  // Every hook must run before this guard: React counts hooks per render, so
+  // bailing out earlier (org still loading, or cleared on logout) would change
+  // the hook count between renders and crash the till.
+  if (!org || !user) return null;
+  const currency = org.currency.symbol;
 
   const subTotal = cartLines.reduce((s, l) => s + l.lineTotal, 0);
   const discountAmount = (subTotal * discountPercent) / 100;
@@ -164,9 +168,9 @@ const POSPage: React.FC = () => {
 
       showToast('Bill completed ✓');
       clearCart();
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-      showToast('Checkout failed: ' + e.message);
+      showToast('Checkout failed: ' + errorMessage(e, 'please try again'));
     } finally {
       setBusy(false);
     }

@@ -19,6 +19,8 @@ import {
 import { auth, db } from '../lib/firebase';
 import { seedDemoOrg } from '../lib/demoSeed';
 import { getPlan } from '../lib/plans';
+import { toMs } from '../lib/insights';
+import type { FieldValue } from 'firebase/firestore';
 import type { Plan, PlanId } from '../lib/plans';
 import type { Organization, OrgRole, OrgMember, Invite } from '../types';
 
@@ -69,10 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Resolve demo start time (ms) from the org's createdAt Firestore timestamp
   const demoStartMs = (() => {
     if (!org?.isDemo || !org.createdAt) return null;
-    const ts: any = org.createdAt;
-    if (typeof ts.toMillis === 'function') return ts.toMillis();
-    if (ts.seconds) return ts.seconds * 1000;
-    return null;
+    return toMs(org.createdAt);
   })();
 
   // Tick down the demo countdown every second
@@ -133,7 +132,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Role's source of truth is the member doc (owner can change it).
         const memberSnap = await getDoc(doc(db, 'orgs', orgId, 'members', u.uid));
         if (orgSnap.exists() && memberSnap.exists()) {
-          setOrg({ id: orgSnap.id, ...(orgSnap.data() as any) });
+          setOrg({ id: orgSnap.id, ...(orgSnap.data() as Omit<Organization, 'id'>) });
           setRole((memberSnap.data().role as OrgRole) || 'viewer');
         } else {
           setOrg(null);
@@ -253,7 +252,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const listMembers = async (): Promise<OrgMember[]> => {
     if (!org) return [];
     const snap = await getDocs(collection(db, 'orgs', org.id, 'members'));
-    return snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+    return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<OrgMember, 'id'>) }));
   };
 
   const listInvites = async (): Promise<Invite[]> => {
@@ -265,7 +264,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const inviteMember = async (email: string, role: OrgRole) => {
     if (!user || !org) throw new Error('No active organisation');
     const key = inviteKey(email);
-    const payload: Invite = {
+    const payload: Omit<Invite, 'createdAt'> & { createdAt: FieldValue } = {
       email: key,
       orgId: org.id,
       orgName: org.name,

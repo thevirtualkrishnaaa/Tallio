@@ -1,5 +1,17 @@
 // Core domain types — org-scoped, currency-agnostic, custom-attribute friendly
 
+// How a Firestore timestamp actually arrives on the client. Every date in this
+// app is written with serverTimestamp(), so it is never a JS Date: it reads
+// back as a Timestamp (which has toMillis), and raw snapshot data can surface
+// the plain { seconds } shape instead. Both are optional because a document
+// read straight after a write can arrive before the server has stamped it.
+// Use toMs() in lib/insights.ts to turn one into a number.
+export interface FirestoreDate {
+  toMillis?: () => number;
+  toDate?: () => Date;
+  seconds?: number;
+}
+
 export interface Currency {
   code: string;   // e.g. 'INR', 'USD'
   symbol: string; // e.g. '₹', '$'
@@ -13,7 +25,7 @@ export interface Organization {
   ownerId: string;
   plan?: 'starter' | 'growth' | 'scale';
   isDemo?: boolean;
-  createdAt: any;
+  createdAt: FirestoreDate;
 }
 
 export type OrgRole = 'owner' | 'cashier' | 'viewer';
@@ -23,7 +35,7 @@ export interface OrgMember {
   userId: string;
   email: string;
   role: OrgRole;
-  joinedAt: any;
+  joinedAt: FirestoreDate;
 }
 
 // A pending invite, stored at top-level invites/{emailLowercased}
@@ -33,7 +45,7 @@ export interface Invite {
   orgName: string;
   role: OrgRole;
   invitedBy: string;
-  createdAt: any;
+  createdAt: FirestoreDate;
 }
 
 // Defines a custom field that products in a category can carry
@@ -48,7 +60,7 @@ export interface Category {
   id: string;
   name: string;
   attributeSchema: AttributeDef[];
-  createdAt: any;
+  createdAt: FirestoreDate;
 }
 
 export interface Product {
@@ -63,8 +75,8 @@ export interface Product {
   unit: string;        // 'each', 'kg', 'hour', etc. — free text, universal
   sku: string;
   attributes: Record<string, string | number>; // dynamic per category schema
-  createdAt: any;
-  updatedAt?: any;
+  createdAt: FirestoreDate;
+  updatedAt?: FirestoreDate;
 }
 
 export interface Customer {
@@ -75,7 +87,7 @@ export interface Customer {
   address?: string;
   balance: number;
   totalSpend: number;
-  createdAt: any;
+  createdAt: FirestoreDate;
 }
 
 export interface BillItem {
@@ -104,6 +116,6 @@ export interface Bill {
   paidAmount: number;
   status: PaymentStatus;
   notes?: string;
-  createdAt: any;
+  createdAt: FirestoreDate;
   createdBy: string; // userId
 }

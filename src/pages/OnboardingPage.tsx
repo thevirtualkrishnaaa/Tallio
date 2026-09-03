@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { errorMessage } from '../lib/errors';
 
 const CURRENCIES = [
   { code: 'GBP', symbol: '£', label: 'GBP — British Pound £' },
@@ -33,8 +34,8 @@ const OnboardingPage: React.FC = () => {
     try {
       const c = CURRENCIES[currencyIdx];
       await createOrganization(name.trim(), c.code, c.symbol, taxRate);
-    } catch (err: any) {
-      setError(err.message || 'Failed to create organization');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to create organization'));
     } finally {
       setBusy(false);
     }

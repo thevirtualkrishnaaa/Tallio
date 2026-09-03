@@ -3,14 +3,17 @@
 // fast, free, and works offline. The LLM-powered "Ask Tallio" chat
 // is a separate layer that builds on the same computed facts.
 
-import type { Bill, Product, Customer } from '../types';
+import type { Bill, Product, Customer, FirestoreDate } from '../types';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-function toMs(ts: any): number | null {
+// Canonical Firestore-timestamp reader for the app — every module that needs
+// epoch millis from a document imports this one rather than rolling its own.
+// Returns null when the document has not been server-stamped yet.
+export function toMs(ts: FirestoreDate | null | undefined): number | null {
   if (!ts) return null;
   if (typeof ts.toMillis === 'function') return ts.toMillis();
-  if (ts.seconds) return ts.seconds * 1000;
+  if (typeof ts.seconds === 'number') return ts.seconds * 1000;
   return null;
 }
 

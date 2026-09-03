@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { PLAN_ORDER, PLANS } from '../lib/plans';
 import type { PlanId } from '../lib/plans';
 import { startCheckout } from '../lib/stripe';
+import { errorMessage } from '../lib/errors';
 
 const BillingPage: React.FC = () => {
   const { org, plan, isDemo } = useAuth();
@@ -17,8 +18,8 @@ const BillingPage: React.FC = () => {
     try {
       // Redirects to Stripe Checkout; on success Stripe's webhook updates the plan.
       await startCheckout(org.id, planId);
-    } catch (e: any) {
-      setError(e?.message || 'Could not start checkout.');
+    } catch (e) {
+      setError(errorMessage(e, 'Could not start checkout.'));
       setBusy(null);
     }
   };

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { doc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
+import { errorMessage } from '../lib/errors';
 
 const CURRENCIES = [
   { code: 'GBP', symbol: '£' }, { code: 'USD', symbol: '$' }, { code: 'EUR', symbol: '€' },
@@ -27,8 +28,8 @@ const SettingsPage: React.FC = () => {
       await setDoc(doc(db, 'orgs', org.id), { currency: { code: c.code, symbol: c.symbol }, defaultTaxRate: taxRate }, { merge: true });
       await refreshOrg();
       setMsg('Settings saved.');
-    } catch (e: any) {
-      setMsg('Failed: ' + e.message);
+    } catch (e) {
+      setMsg('Failed: ' + errorMessage(e, 'please try again'));
     } finally {
       setSaving(false);
     }

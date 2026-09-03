@@ -3,7 +3,7 @@ import { addDoc, deleteDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Plus, Trash2, Edit3 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useOrgCollection } from '../lib/useOrgCollection';
-import { orgCol, orgDoc } from '../lib/orgData';
+import { orgCol, orgDoc, withoutId } from '../lib/orgData';
 import { can } from '../lib/roles';
 import type { Customer } from '../types';
 import Modal from '../components/Modal';
@@ -25,8 +25,7 @@ const CustomersPage: React.FC = () => {
 
   const save = async () => {
     if (!editing?.name?.trim()) return;
-    const payload = { ...editing, name: editing.name.trim() };
-    delete (payload as any).id;
+    const payload = withoutId({ ...editing, name: editing.name.trim() });
     if (editing.id) {
       await setDoc(orgDoc(org.id, 'customers', editing.id), payload, { merge: true });
     } else {

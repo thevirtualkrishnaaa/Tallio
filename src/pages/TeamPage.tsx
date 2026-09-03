@@ -3,6 +3,7 @@ import { UserPlus, Trash2, Mail, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { ROLES, roleLabel, can } from '../lib/roles';
 import type { OrgRole, OrgMember, Invite } from '../types';
+import { errorMessage } from '../lib/errors';
 
 const TeamPage: React.FC = () => {
   const {
@@ -29,8 +30,8 @@ const TeamPage: React.FC = () => {
       // Hide invites that have already been accepted (now a member)
       const memberEmails = new Set(m.map((x) => x.email?.toLowerCase()));
       setInvites(i.filter((inv) => !memberEmails.has(inv.email.toLowerCase())));
-    } catch (e: any) {
-      setError(e.message || 'Could not load team');
+    } catch (e) {
+      setError(errorMessage(e, 'Could not load team'));
     } finally {
       setLoading(false);
     }
@@ -69,8 +70,8 @@ const TeamPage: React.FC = () => {
       setMsg(`Invite sent to ${clean}. They'll join as ${roleLabel(inviteRole)} when they sign in with this email.`);
       setEmail('');
       await refresh();
-    } catch (err: any) {
-      setError(err.message || 'Could not send invite');
+    } catch (err) {
+      setError(errorMessage(err, 'Could not send invite'));
     } finally {
       setBusy(false);
     }
@@ -87,8 +88,8 @@ const TeamPage: React.FC = () => {
     try {
       await removeMember(m.id || m.userId);
       await refresh();
-    } catch (err: any) {
-      setError(err.message || 'Could not remove member');
+    } catch (err) {
+      setError(errorMessage(err, 'Could not remove member'));
     }
   };
 

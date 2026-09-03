@@ -6,6 +6,7 @@ import { useOrgCollection } from '../lib/useOrgCollection';
 import { askTallio, buildBusinessContext, isAiConfigured } from '../lib/askTallio';
 import type { ChatTurn } from '../lib/askTallio';
 import type { Bill, Product, Customer } from '../types';
+import { errorMessage } from '../lib/errors';
 
 const SUGGESTIONS = [
   'What was my best-selling product?',
@@ -50,8 +51,8 @@ const AskTallioPage: React.FC = () => {
     try {
       const answer = await askTallio(context, history, q);
       setTurns((t) => [...t, { role: 'model', text: answer }]);
-    } catch (e: any) {
-      setError(e.message || 'Something went wrong talking to the AI.');
+    } catch (e) {
+      setError(errorMessage(e, 'Something went wrong talking to the AI.'));
       setTurns((t) => t.slice(0, -1)); // roll back the unanswered question
       setInput(q);
     } finally {

@@ -3,7 +3,7 @@ import { addDoc, deleteDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Plus, Trash2, Edit3 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useOrgCollection } from '../lib/useOrgCollection';
-import { orgCol, orgDoc } from '../lib/orgData';
+import { orgCol, orgDoc, withoutId } from '../lib/orgData';
 import { isAtLimit } from '../lib/plans';
 import { can } from '../lib/roles';
 import type { Category, Product, AttributeDef } from '../types';
@@ -53,7 +53,7 @@ const ProductsPage: React.FC = () => {
   const saveProduct = async () => {
     if (!editingProduct || !editingProduct.name?.trim()) return;
     const cat = categories.find((c) => c.id === editingProduct.categoryId);
-    const payload = {
+    const payload = withoutId({
       ...editingProduct,
       name: editingProduct.name.trim(),
       categoryName: cat?.name || '',
@@ -62,8 +62,7 @@ const ProductsPage: React.FC = () => {
       stock: Number(editingProduct.stock) || 0,
       lowStockAlert: Number(editingProduct.lowStockAlert) || 0,
       updatedAt: serverTimestamp(),
-    };
-    delete (payload as any).id;
+    });
 
     if (editingProduct.id) {
       await setDoc(orgDoc(org.id, 'products', editingProduct.id), payload, { merge: true });
@@ -262,7 +261,7 @@ const ProductsPage: React.FC = () => {
                         <input
                           type={attr.type === 'number' ? 'number' : 'text'}
                           className="input"
-                          value={(editingProduct.attributes?.[attr.key] as any) ?? ''}
+                          value={editingProduct.attributes?.[attr.key] ?? ''}
                           onChange={(e) => setEditingProduct({ ...editingProduct, attributes: { ...editingProduct.attributes, [attr.key]: attr.type === 'number' ? (parseFloat(e.target.value) || 0) : e.target.value } })}
                         />
                       )}

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { errorMessage } from '../lib/errors';
 
 const AuthPage: React.FC = () => {
   const { login, register, startDemo } = useAuth();
@@ -15,8 +16,8 @@ const AuthPage: React.FC = () => {
     setDemoBusy(true);
     try {
       await startDemo();
-    } catch (err: any) {
-      setError(err.message || 'Could not start demo');
+    } catch (err) {
+      setError(errorMessage(err, 'Could not start demo'));
       setDemoBusy(false);
     }
   };
@@ -31,8 +32,8 @@ const AuthPage: React.FC = () => {
       } else {
         await register(email, password);
       }
-    } catch (err: any) {
-      setError(err.message || 'Something went wrong');
+    } catch (err) {
+      setError(errorMessage(err, 'Something went wrong'));
     } finally {
       setBusy(false);
     }

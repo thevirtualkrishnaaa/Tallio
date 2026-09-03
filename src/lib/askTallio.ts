@@ -4,21 +4,15 @@
 
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from './firebase';
-import { buildInsights } from './insights';
+import { buildInsights, toMs } from './insights';
 import type { Bill, Product, Customer, Organization } from '../types';
+import { errorMessage } from './errors';
 
 const functions = getFunctions(app, 'us-central1');
 
 // The key now lives server-side, so the client is always "configured".
 export function isAiConfigured(): boolean {
   return true;
-}
-
-function toMs(ts: any): number | null {
-  if (!ts) return null;
-  if (typeof ts.toMillis === 'function') return ts.toMillis();
-  if (ts.seconds) return ts.seconds * 1000;
-  return null;
 }
 
 // Build a compact, factual snapshot of the business for grounding.
@@ -255,7 +249,10 @@ export async function askTallio(
       mode,
     });
     return stripMarkdown(res.data.answer || '');
-  } catch (e: any) {
-    throw new Error(e?.message || 'Tallio AI is unavailable right now — please try again.');
+  } catch (e) {
+    throw new Error(
+      errorMessage(e, 'Tallio AI is unavailable right now — please try again.'),
+      { cause: e }
+    );
   }
 }

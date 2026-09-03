@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { orgCol } from './orgData';
 
 // Subscribes to orgs/{orgId}/<collectionName> and returns live data
-export function useOrgCollection<T = any>(collectionName: string, constraints: QueryConstraint[] = []) {
+export function useOrgCollection<T = unknown>(collectionName: string, constraints: QueryConstraint[] = []) {
   const { org } = useAuth();
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);

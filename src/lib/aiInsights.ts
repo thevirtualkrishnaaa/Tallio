@@ -8,6 +8,7 @@
 // data actually moves.
 
 import { askTallio, buildBusinessContext } from './askTallio';
+import { toMs } from './insights';
 import type { Bill, Product, Customer, Organization } from '../types';
 
 export interface AiFinding {
@@ -36,24 +37,12 @@ const BRIEFING_PROMPT =
   'where the tag is exactly positive, warning or neutral. Under ACTIONS give two to ' +
   'four lines starting with "- ". Ground every claim in a real number from my data.';
 
-// Firestore Timestamps arrive as objects with toMillis(); a doc written with
-// serverTimestamp() can still be in flight and carry only { seconds }.
-type TimestampLike = { toMillis?: () => number; seconds?: number };
-
-function toMs(ts: unknown): number {
-  const t = ts as TimestampLike | null | undefined;
-  if (!t) return 0;
-  if (typeof t.toMillis === 'function') return t.toMillis();
-  if (typeof t.seconds === 'number') return t.seconds * 1000;
-  return 0;
-}
-
 // Cheap signature of the inputs a briefing was written from. When this changes,
 // the cached briefing is stale and the page offers a refresh.
 export function dataFingerprint(bills: Bill[], products: Product[], customers: Customer[]): string {
   const revenue = bills.reduce((s, b) => s + (b.total || 0), 0);
   const stock = products.reduce((s, p) => s + (Number(p.stock) || 0), 0);
-  const latest = bills.reduce((m, b) => Math.max(m, toMs(b.createdAt)), 0);
+  const latest = bills.reduce((m, b) => Math.max(m, toMs(b.createdAt) ?? 0), 0);
   return [
     bills.length,
     revenue.toFixed(2),

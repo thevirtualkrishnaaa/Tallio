@@ -11,9 +11,6 @@ const DashboardPage: React.FC = () => {
   const { data: products } = useOrgCollection<Product>('products');
   const { data: customers } = useOrgCollection<Customer>('customers');
 
-  if (!org) return null;
-  const currency = org.currency.symbol;
-
   const totalRevenue = bills.reduce((s, b) => s + (b.total || 0), 0);
   const totalProfit = bills.reduce(
     (s, b) => s + (b.items || []).reduce((is, i) => is + (i.unitPrice - (i.unitCost || 0)) * i.quantity, 0),
@@ -35,6 +32,10 @@ const DashboardPage: React.FC = () => {
     );
     return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue);
   }, [bills]);
+
+  // Guard after the hook, never before it — see POSPage for why.
+  if (!org) return null;
+  const currency = org.currency.symbol;
 
   const topProducts = productPerf.slice(0, 5);
   const slowMoving = products
