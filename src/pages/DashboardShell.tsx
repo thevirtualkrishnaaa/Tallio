@@ -1,18 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import {
   LayoutGrid, Receipt, History, Package, Users, Settings, LogOut, CreditCard, Sparkles, MessageSquare, ShieldCheck,
 } from 'lucide-react';
-import POSPage from './POSPage';
-import HistoryPage from './HistoryPage';
-import ProductsPage from './ProductsPage';
-import CustomersPage from './CustomersPage';
-import SettingsPage from './SettingsPage';
-import DashboardPage from './DashboardPage';
-import BillingPage from './BillingPage';
-import InsightsPage from './InsightsPage';
-import AskTallioPage from './AskTallioPage';
-import TeamPage from './TeamPage';
+// Each page is its own chunk. A till runs on whatever phone is behind the
+// counter, so the shell should not ship nine screens nobody has opened yet.
+const POSPage = lazy(() => import('./POSPage'));
+const HistoryPage = lazy(() => import('./HistoryPage'));
+const ProductsPage = lazy(() => import('./ProductsPage'));
+const CustomersPage = lazy(() => import('./CustomersPage'));
+const SettingsPage = lazy(() => import('./SettingsPage'));
+const DashboardPage = lazy(() => import('./DashboardPage'));
+const BillingPage = lazy(() => import('./BillingPage'));
+const InsightsPage = lazy(() => import('./InsightsPage'));
+const AskTallioPage = lazy(() => import('./AskTallioPage'));
+const TeamPage = lazy(() => import('./TeamPage'));
 import DemoBanner from '../components/DemoBanner';
 import { roleLabel } from '../lib/roles';
 import type { OrgRole } from '../types';
@@ -125,16 +127,18 @@ const DashboardShell: React.FC = () => {
 
       <main className="flex-1 overflow-y-auto">
         <div className="p-6 max-w-7xl mx-auto">
-          {tab === 'dashboard' && <DashboardPage />}
-          {tab === 'insights' && <InsightsPage />}
-          {tab === 'ask' && <AskTallioPage />}
-          {tab === 'pos' && <POSPage />}
-          {tab === 'history' && <HistoryPage />}
-          {tab === 'products' && <ProductsPage />}
-          {tab === 'customers' && <CustomersPage />}
-          {tab === 'team' && <TeamPage />}
-          {tab === 'billing' && <BillingPage />}
-          {tab === 'settings' && <SettingsPage />}
+          <Suspense fallback={<p className="text-sm text-gray-400">Loading…</p>}>
+            {tab === 'dashboard' && <DashboardPage />}
+            {tab === 'insights' && <InsightsPage />}
+            {tab === 'ask' && <AskTallioPage />}
+            {tab === 'pos' && <POSPage />}
+            {tab === 'history' && <HistoryPage />}
+            {tab === 'products' && <ProductsPage />}
+            {tab === 'customers' && <CustomersPage />}
+            {tab === 'team' && <TeamPage />}
+            {tab === 'billing' && <BillingPage />}
+            {tab === 'settings' && <SettingsPage />}
+          </Suspense>
         </div>
       </main>
       </div>
