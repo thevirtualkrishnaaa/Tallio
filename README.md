@@ -69,7 +69,7 @@
 - [x] **Smart Restock Alerts** — velocity-based "runs out in N days" predictions
 - [x] **Ask Tallio** — chat interface powered by **Claude (Anthropic)**, grounded in live data, served via a secure Cloud Function
 - [x] Move AI key behind a Cloud Function (key in Secret Manager, never client-side)
-- [ ] **Claude-written Insights narrative** — let Claude generate the richer, analyst-style commentary on the Insights page too (currently local math); reuse the same `askTallio` function
+- [x] **Claude-written Insights narrative** — on-demand analyst briefing on the Insights page (summary, findings, next actions), written by Claude through the same `askTallio` function in `insights` mode and cached per browser until the numbers move
 - [ ] **Receipt Scan (OCR)** — scan paper receipts to auto-log expenses
 - [ ] **AI-generated reports** — exportable PDF summaries
 

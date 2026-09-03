@@ -222,15 +222,25 @@ function stripMarkdown(text: string): string {
     .trim();
 }
 
+// 'chat' powers the Ask Tallio page; 'insights' asks for the structured
+// analyst briefing rendered on the Insights page.
+export type AskMode = 'chat' | 'insights';
+
 // Calls the askTallio Cloud Function, which talks to Claude server-side.
 // The history's 'model' role is mapped to Anthropic's 'assistant'.
 export async function askTallio(
   context: string,
   history: ChatTurn[],
-  question: string
+  question: string,
+  mode: AskMode = 'chat'
 ): Promise<string> {
   const call = httpsCallable<
-    { context: string; history: { role: 'user' | 'assistant'; text: string }[]; question: string },
+    {
+      context: string;
+      history: { role: 'user' | 'assistant'; text: string }[];
+      question: string;
+      mode: AskMode;
+    },
     { answer: string }
   >(functions, 'askTallio');
 
@@ -242,6 +252,7 @@ export async function askTallio(
         text: h.text,
       })),
       question,
+      mode,
     });
     return stripMarkdown(res.data.answer || '');
   } catch (e: any) {

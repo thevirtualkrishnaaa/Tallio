@@ -1,9 +1,16 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { orderBy } from 'firebase/firestore';
-import { Sparkles, TrendingUp, AlertTriangle, Lightbulb, PackageX } from 'lucide-react';
+import {
+  Sparkles, TrendingUp, AlertTriangle, Lightbulb, PackageX,
+  RefreshCw, Loader2, ArrowRight, Bot,
+} from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useOrgCollection } from '../lib/useOrgCollection';
 import { buildInsights } from '../lib/insights';
+import {
+  generateBriefing, loadBriefing, saveBriefing, dataFingerprint, timeAgo,
+} from '../lib/aiInsights';
+import type { AiBriefing } from '../lib/aiInsights';
 import type { Bill, Product, Customer } from '../types';
 
 const toneStyles = {
@@ -11,6 +18,26 @@ const toneStyles = {
   warning: { wrap: 'bg-amber-50 border-amber-200', icon: 'text-amber-600', Icon: AlertTriangle },
   neutral: { wrap: 'bg-blue-50 border-blue-200', icon: 'text-blue-600', Icon: Lightbulb },
 } as const;
+
+const findingDot = {
+  positive: 'bg-green-500',
+  warning: 'bg-amber-500',
+  neutral: 'bg-blue-500',
+} as const;
+
+// Briefing state is keyed by org so switching orgs (or into demo) shows that
+// org's own cached briefing rather than the previous one.
+interface AiState {
+  orgId: string | null;
+  briefing: AiBriefing | null;
+  error: string;
+}
+
+const initAi = (orgId: string | null): AiState => ({
+  orgId,
+  briefing: orgId ? loadBriefing(orgId) : null,
+  error: '',
+});
 
 const urgencyStyles = {
   critical: { badge: 'bg-red-100 text-red-700', label: 'Restock now' },
@@ -28,6 +55,40 @@ const InsightsPage: React.FC = () => {
     () => buildInsights(bills, products, customers, org?.currency.symbol || '£'),
     [bills, products, customers, org?.currency.symbol]
   );
+
+  // ── Claude-written briefing ──────────────────────────────────────────────
+  const orgId = org?.id ?? null;
+  const [ai, setAi] = useState<AiState>(() => initAi(orgId));
+  const [writing, setWriting] = useState(false);
+
+  // Org changed — reload that org's cached briefing during render rather than
+  // in an effect, so the page never flashes the previous org's briefing.
+  if (ai.orgId !== orgId) setAi(initAi(orgId));
+
+  const { briefing, error: aiError } = ai;
+
+  const fingerprint = useMemo(
+    () => dataFingerprint(bills, products, customers),
+    [bills, products, customers]
+  );
+  const stale = !!briefing && briefing.fingerprint !== fingerprint;
+
+  const write = async () => {
+    if (!org || writing) return;
+    setWriting(true);
+    setAi((s) => ({ ...s, error: '' }));
+    try {
+      const next = await generateBriefing(org, bills, products, customers);
+      saveBriefing(org.id, next);
+      setAi({ orgId: org.id, briefing: next, error: '' });
+    } catch (e) {
+      const message =
+        e instanceof Error ? e.message : 'Tallio AI is unavailable right now — please try again.';
+      setAi((s) => ({ ...s, error: message }));
+    } finally {
+      setWriting(false);
+    }
+  };
 
   if (!org) return null;
   const loading = lb || lp;
@@ -50,6 +111,90 @@ const InsightsPage: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-6">
+          {/* AI analyst briefing — written by Claude from the live data */}
+          <div className="border border-purple-200 bg-gradient-to-br from-purple-50 to-white rounded-xl p-5">
+            <div className="flex items-start justify-between gap-4 mb-3">
+              <div className="flex items-center gap-2">
+                <Bot className="text-purple-600 shrink-0" size={18} />
+                <div>
+                  <h3 className="text-sm font-medium text-gray-900">AI analyst briefing</h3>
+                  <p className="text-xs text-gray-500">
+                    Written by Claude, reading your live sales, stock and customers.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={write}
+                disabled={writing}
+                className="shrink-0 inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {writing ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} />}
+                {writing ? 'Writing…' : briefing ? 'Refresh' : 'Write my briefing'}
+              </button>
+            </div>
+
+            {aiError && (
+              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
+                {aiError}
+              </p>
+            )}
+
+            {writing && !briefing ? (
+              <p className="text-sm text-gray-500 py-4">
+                Claude is reading your books — this takes a few seconds…
+              </p>
+            ) : !briefing ? (
+              <p className="text-sm text-gray-500 py-2">
+                The cards below are computed instantly from your numbers. Ask Claude for the
+                written version when you want the story behind them — what is trending, what is
+                quietly slipping, and what to do about it this week.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {briefing.summary && (
+                  <p className="text-sm text-gray-800 whitespace-pre-line leading-relaxed">
+                    {briefing.summary}
+                  </p>
+                )}
+
+                {briefing.findings.length > 0 && (
+                  <ul className="space-y-2">
+                    {briefing.findings.map((f, i) => (
+                      <li key={i} className="flex gap-2.5 text-sm">
+                        <span className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${findingDot[f.tone]}`} />
+                        <span className="text-gray-800">
+                          <span className="font-medium text-gray-900">{f.title}</span>
+                          {f.detail && <> — {f.detail}</>}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {briefing.actions.length > 0 && (
+                  <div className="bg-white border border-purple-100 rounded-lg p-4">
+                    <p className="text-xs uppercase tracking-wide text-purple-600 font-medium mb-2">
+                      What to do next
+                    </p>
+                    <ul className="space-y-1.5">
+                      {briefing.actions.map((a, i) => (
+                        <li key={i} className="flex gap-2 text-sm text-gray-800">
+                          <ArrowRight className="text-purple-400 shrink-0 mt-0.5" size={14} />
+                          <span>{a}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <p className="text-xs text-gray-400">
+                  Generated {timeAgo(briefing.generatedAt)}
+                  {stale && ' · your data has changed since — refresh for an up-to-date read'}
+                </p>
+              </div>
+            )}
+          </div>
+
           {/* Insight cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {report.insights.map((ins) => {
@@ -117,7 +262,8 @@ const InsightsPage: React.FC = () => {
           </div>
 
           <p className="text-xs text-gray-400">
-            ✨ These insights update automatically as you make sales. Conversational "Ask Tallio" AI is coming next.
+            ✨ The cards above update automatically as you make sales. The briefing is written on
+            demand by Claude — ask for a fresh one whenever the numbers move.
           </p>
         </div>
       )}
