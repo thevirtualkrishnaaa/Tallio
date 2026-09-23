@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useOrgCollection } from '../lib/useOrgCollection';
-import { orgCol, orgDoc, withoutId } from '../lib/orgData';
+import { orgCol, orgDoc } from '../lib/orgData';
 import { can } from '../lib/roles';
 import { toMs } from '../lib/insights';
 import type { Expense, ExpenseCategory, PaymentMethod, Bill } from '../types';
@@ -143,7 +143,7 @@ const ExpensesPage: React.FC = () => {
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
   }, [filteredExpenses]);
 
-  const topCategory = categoryTotals[0] ?? null;
+  const topCategory = categoryTotals.length > 0 ? categoryTotals[0] : null;
 
   if (!org) return null;
   const currency = org.currency.symbol;
@@ -176,23 +176,23 @@ const ExpensesPage: React.FC = () => {
       const dateObj = new Date(form.dateStr);
       const dateTimestamp = Timestamp.fromDate(isNaN(dateObj.getTime()) ? new Date() : dateObj);
 
-      const payload = withoutId({
+      const payload = {
         title: form.title.trim(),
         amount: Number(form.amount),
         category: form.category,
         date: dateTimestamp,
         paymentMethod: form.paymentMethod,
-        vendor: form.vendor.trim() || null,
-        notes: form.notes.trim() || null,
+        vendor: form.vendor.trim() || undefined,
+        notes: form.notes.trim() || undefined,
+        createdBy: user.uid,
         updatedAt: serverTimestamp(),
-      });
+      };
 
       if (form.id) {
         await setDoc(orgDoc(org.id, 'expenses', form.id), payload, { merge: true });
       } else {
         await addDoc(orgCol(org.id, 'expenses'), {
           ...payload,
-          createdBy: user.uid,
           createdAt: serverTimestamp(),
         });
       }
@@ -218,7 +218,7 @@ const ExpensesPage: React.FC = () => {
   };
 
   const getCategoryBadge = (cat: ExpenseCategory) => {
-    const def = CATEGORIES.find((c) => c.id === cat) || CATEGORIES[CATEGORIES.length - 1];
+    const def = CATEGORIES.find((c) => c.id === cat) ?? CATEGORIES[0];
     return (
       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${def.color}`}>
         {def.label}
