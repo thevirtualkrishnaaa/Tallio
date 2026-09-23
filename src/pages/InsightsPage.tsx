@@ -120,7 +120,7 @@ const InsightsPage: React.FC = () => {
                 <div>
                   <h3 className="text-sm font-medium text-gray-900">AI analyst briefing</h3>
                   <p className="text-xs text-gray-500">
-                    Written by Claude, reading your live sales, stock and customers.
+                    Written by Google Gemini, reading your live sales, stock and expenses.
                   </p>
                 </div>
               </div>

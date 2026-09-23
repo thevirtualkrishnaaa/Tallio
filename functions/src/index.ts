@@ -1,21 +1,19 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Stripe billing functions (checkout + webhook)
 export { createCheckoutSession, stripeWebhook } from './stripe.js';
 
-// The Claude API key lives in Google Secret Manager — never shipped to the browser.
-// Set it once with:  firebase functions:secrets:set ANTHROPIC_API_KEY
-const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
+// The Google Gemini API key lives in Google Secret Manager — never shipped to the browser.
+// Set it once with:  npx firebase-tools functions:secrets:set GEMINI_API_KEY
+const GEMINI_API_KEY = defineSecret('GEMINI_API_KEY');
 
-// Model identifier from Anthropic Claude API:
-// 'claude-3-5-sonnet-20241022' is standard & highly capable;
-// 'claude-3-5-haiku-20241022' is ~5x cheaper and faster.
-const MODEL = 'claude-3-5-sonnet-20241022';
+// Google's latest Gemini 2.5 Flash model (fast, capable, free tier with Google AI Studio key)
+const MODEL = 'gemini-2.5-flash';
 
 interface ChatTurn {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'model';
   text: string;
 }
 
@@ -53,7 +51,7 @@ const INSIGHTS_SYSTEM =
   `- Look for what a simple dashboard misses: trends across weeks and months, products ` +
   `quietly rising or fading, day-of-week patterns, stock that runs out before it can ` +
   `realistically be reordered, revenue concentrated in too few customers or products, ` +
-  `catalogue dead weight, and margin (selling price versus cost).\n` +
+  `catalogue dead weight, operating overheads/expenses, and margin (selling price versus cost).\n` +
   `- Be specific to THIS business. No generic small-business advice.\n` +
   `- Say plainly when the history is too short to call a trend, instead of overreaching.\n\n` +
   `Reply in EXACTLY this structure, using these literal section labels on their own lines:\n\n` +
@@ -71,7 +69,7 @@ const INSIGHTS_SYSTEM =
   `Give two to four actions.`;
 
 export const askTallio = onCall<AskTallioRequest>(
-  { secrets: [ANTHROPIC_API_KEY], region: 'us-central1' },
+  { secrets: [GEMINI_API_KEY], region: 'us-central1' },
   async (request) => {
     // Only signed-in users (including demo/anonymous) may call the AI.
     if (!request.auth) {
@@ -83,39 +81,53 @@ export const askTallio = onCall<AskTallioRequest>(
       throw new HttpsError('invalid-argument', 'A question is required.');
     }
 
-    const insightsMode = mode === 'insights';
-    const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
+    const apiKey = GEMINI_API_KEY.value();
+    if (!apiKey) {
+      throw new HttpsError('failed-precondition', 'GEMINI_API_KEY secret is not configured.');
+    }
 
-    const system =
+    const insightsMode = mode === 'insights';
+    const genAI = new GoogleGenerativeAI(apiKey);
+
+    const systemInstruction =
       `${insightsMode ? INSIGHTS_SYSTEM : CHAT_SYSTEM}\n\n` +
       `=== BUSINESS DATA SNAPSHOT ===\n${context ?? ''}\n=== END DATA ===`;
 
-    const messages = [
-      // The briefing is one-shot: chat history is only meaningful in chat mode.
-      ...(insightsMode || !Array.isArray(history) ? [] : history)
-        .filter((h) => h && typeof h.text === 'string')
-        .map((h) => ({
-          role: h.role === 'assistant' ? ('assistant' as const) : ('user' as const),
-          content: h.text,
-        })),
-      { role: 'user' as const, content: question },
-    ];
+    const model = genAI.getGenerativeModel({
+      model: MODEL,
+      systemInstruction,
+      generationConfig: {
+        maxOutputTokens: insightsMode ? 1600 : 1024,
+        temperature: 0.2,
+      },
+    });
 
     try {
-      const response = await client.messages.create({
-        model: MODEL,
-        max_tokens: insightsMode ? 1600 : 1024,
-        system,
-        messages,
-      });
-      const answer = response.content
-        .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-        .map((b) => b.text)
-        .join('\n')
-        .trim();
-      return { answer };
+      if (insightsMode) {
+        // Briefing is one-shot
+        const result = await model.generateContent(question);
+        const answer = result.response.text().trim();
+        return { answer };
+      } else {
+        // Conversational chat mode with history
+        const formattedHistory = (Array.isArray(history) ? history : [])
+          .filter((h) => h && typeof h.text === 'string')
+          .map((h) => ({
+            role: h.role === 'assistant' || h.role === 'model' ? ('model' as const) : ('user' as const),
+            parts: [{ text: h.text }],
+          }));
+
+        const chat = model.startChat({
+          history: formattedHistory,
+        });
+
+        const result = await chat.sendMessage(question);
+        const answer = result.response.text().trim();
+        return { answer };
+      }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'AI request failed';
+      console.error('Gemini API Error:', err);
+      const message = err instanceof Error ? err.message : 'Gemini AI request failed';
       throw new HttpsError('internal', message);
     }
   }
