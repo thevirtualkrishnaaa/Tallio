@@ -11,7 +11,7 @@ import {
   generateBriefing, loadBriefing, saveBriefing, dataFingerprint, timeAgo,
 } from '../lib/aiInsights';
 import type { AiBriefing } from '../lib/aiInsights';
-import type { Bill, Product, Customer } from '../types';
+import type { Bill, Product, Customer, Expense } from '../types';
 
 const toneStyles = {
   positive: { wrap: 'bg-green-50 border-green-200', icon: 'text-green-600', Icon: TrendingUp },
@@ -50,10 +50,11 @@ const InsightsPage: React.FC = () => {
   const { data: bills, loading: lb } = useOrgCollection<Bill>('bills', [orderBy('createdAt', 'desc')]);
   const { data: products, loading: lp } = useOrgCollection<Product>('products');
   const { data: customers } = useOrgCollection<Customer>('customers');
+  const { data: expenses } = useOrgCollection<Expense>('expenses');
 
   const report = useMemo(
-    () => buildInsights(bills, products, customers, org?.currency.symbol || '£'),
-    [bills, products, customers, org?.currency.symbol]
+    () => buildInsights(bills, products, customers, org?.currency.symbol || '£', expenses),
+    [bills, products, customers, org?.currency.symbol, expenses]
   );
 
   // ── Claude-written briefing ──────────────────────────────────────────────
@@ -68,8 +69,8 @@ const InsightsPage: React.FC = () => {
   const { briefing, error: aiError } = ai;
 
   const fingerprint = useMemo(
-    () => dataFingerprint(bills, products, customers),
-    [bills, products, customers]
+    () => dataFingerprint(bills, products, customers, expenses),
+    [bills, products, customers, expenses]
   );
   const stale = !!briefing && briefing.fingerprint !== fingerprint;
 
@@ -78,7 +79,7 @@ const InsightsPage: React.FC = () => {
     setWriting(true);
     setAi((s) => ({ ...s, error: '' }));
     try {
-      const next = await generateBriefing(org, bills, products, customers);
+      const next = await generateBriefing(org, bills, products, customers, expenses);
       saveBriefing(org.id, next);
       setAi({ orgId: org.id, briefing: next, error: '' });
     } catch (e) {

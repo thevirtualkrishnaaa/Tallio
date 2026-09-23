@@ -225,6 +225,59 @@ export async function seedDemoOrg(orgId: string, userId: string) {
     ops++;
   });
 
+  // ── Phase 3: Realistic operating expenses across 90 days ────────────────
+  const seedExpenses = [
+    // Rent
+    { title: 'Storefront Lease - Month 1', amount: 1200, category: 'Rent', daysAgo: 88, vendor: 'High Street Estates Ltd', paymentMethod: 'Bank Transfer' },
+    { title: 'Storefront Lease - Month 2', amount: 1200, category: 'Rent', daysAgo: 58, vendor: 'High Street Estates Ltd', paymentMethod: 'Bank Transfer' },
+    { title: 'Storefront Lease - Month 3', amount: 1200, category: 'Rent', daysAgo: 28, vendor: 'High Street Estates Ltd', paymentMethod: 'Bank Transfer' },
+    // Staff & Wages
+    { title: 'Staff Wages (Barista & Till)', amount: 1850, category: 'Salaries', daysAgo: 75, vendor: 'Staff Payroll', paymentMethod: 'Bank Transfer' },
+    { title: 'Staff Wages (Barista & Till)', amount: 1850, category: 'Salaries', daysAgo: 45, vendor: 'Staff Payroll', paymentMethod: 'Bank Transfer' },
+    { title: 'Staff Wages (Barista & Till)', amount: 1850, category: 'Salaries', daysAgo: 15, vendor: 'Staff Payroll', paymentMethod: 'Bank Transfer' },
+    // Utilities
+    { title: 'Commercial Electricity & Gas', amount: 340, category: 'Utilities', daysAgo: 70, vendor: 'British Gas Commercial', paymentMethod: 'Bank Transfer' },
+    { title: 'Commercial Electricity & Gas', amount: 325, category: 'Utilities', daysAgo: 40, vendor: 'British Gas Commercial', paymentMethod: 'Bank Transfer' },
+    { title: 'Commercial Electricity & Gas', amount: 310, category: 'Utilities', daysAgo: 10, vendor: 'British Gas Commercial', paymentMethod: 'Bank Transfer' },
+    // Supplies & Inventory
+    { title: 'Arabica Coffee Beans Wholesale Batch', amount: 320, category: 'Inventory', daysAgo: 85, vendor: 'Origin Roasters', paymentMethod: 'Bank Transfer' },
+    { title: 'Organic Milk & Oat Milk Weekly Delivery', amount: 135, category: 'Inventory', daysAgo: 80, vendor: 'Farm Fresh Dairies', paymentMethod: 'Card' },
+    { title: 'Arabica Coffee Beans Wholesale Batch', amount: 350, category: 'Inventory', daysAgo: 65, vendor: 'Origin Roasters', paymentMethod: 'Bank Transfer' },
+    { title: 'Organic Milk & Oat Milk Weekly Delivery', amount: 140, category: 'Inventory', daysAgo: 55, vendor: 'Farm Fresh Dairies', paymentMethod: 'Card' },
+    { title: 'Eco Cups & Bakery Packaging Restock', amount: 195, category: 'Inventory', daysAgo: 50, vendor: 'EcoPack UK', paymentMethod: 'Card' },
+    { title: 'Arabica Coffee Beans Wholesale Batch', amount: 380, category: 'Inventory', daysAgo: 35, vendor: 'Origin Roasters', paymentMethod: 'Bank Transfer' },
+    { title: 'Organic Milk & Oat Milk Weekly Delivery', amount: 145, category: 'Inventory', daysAgo: 25, vendor: 'Farm Fresh Dairies', paymentMethod: 'Card' },
+    { title: 'Arabica Coffee Beans Wholesale Batch', amount: 410, category: 'Inventory', daysAgo: 8, vendor: 'Origin Roasters', paymentMethod: 'Bank Transfer' },
+    { title: 'Organic Milk & Oat Milk Weekly Delivery', amount: 150, category: 'Inventory', daysAgo: 3, vendor: 'Farm Fresh Dairies', paymentMethod: 'Card' },
+    // Software & Tools
+    { title: 'Tallio POS & Cloud Plan', amount: 49, category: 'Software', daysAgo: 85, vendor: 'Tallio Ltd', paymentMethod: 'Card' },
+    { title: 'Tallio POS & Cloud Plan', amount: 49, category: 'Software', daysAgo: 55, vendor: 'Tallio Ltd', paymentMethod: 'Card' },
+    { title: 'Tallio POS & Cloud Plan', amount: 49, category: 'Software', daysAgo: 25, vendor: 'Tallio Ltd', paymentMethod: 'Card' },
+    // Maintenance & Marketing
+    { title: 'Commercial Espresso Machine Annual Service', amount: 180, category: 'Maintenance', daysAgo: 42, vendor: 'La Marzocco Care', paymentMethod: 'Card' },
+    { title: 'Local Social Media Ads & Promo Flyers', amount: 95, category: 'Marketing', daysAgo: 20, vendor: 'Meta Ads & Print', paymentMethod: 'Card' },
+  ];
+
+  for (const exp of seedExpenses) {
+    const expDate = new Date();
+    expDate.setDate(expDate.getDate() - exp.daysAgo);
+    expDate.setHours(10, 30, 0, 0);
+
+    const ref = doc(collection(db, 'orgs', orgId, 'expenses'));
+    batch.set(ref, {
+      title: exp.title,
+      amount: exp.amount,
+      category: exp.category,
+      date: Timestamp.fromDate(expDate),
+      vendor: exp.vendor,
+      paymentMethod: exp.paymentMethod,
+      createdBy: userId,
+      createdAt: Timestamp.fromDate(expDate),
+    });
+    ops++;
+    flushIfNeeded();
+  }
+
   commits.push(batch.commit());
   await Promise.all(commits);
 }

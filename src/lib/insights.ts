@@ -3,7 +3,7 @@
 // fast, free, and works offline. The LLM-powered "Ask Tallio" chat
 // is a separate layer that builds on the same computed facts.
 
-import type { Bill, Product, Customer, FirestoreDate } from '../types';
+import type { Bill, Product, Customer, FirestoreDate, Expense } from '../types';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -43,7 +43,8 @@ export function buildInsights(
   bills: Bill[],
   products: Product[],
   customers: Customer[],
-  currencySymbol: string
+  currencySymbol: string,
+  expenses: Expense[] = []
 ): InsightReport {
   const now = Date.now();
   const cur = (n: number) => `${currencySymbol}${n.toFixed(2)}`;
@@ -197,9 +198,35 @@ export function buildInsights(
     }
   }
 
+  // Operating Expenses & Net Profit insight
+  if (expenses.length > 0 && billsWithTime.length > 0) {
+    const totalRev = billsWithTime.reduce((s, x) => s + (x.bill.total || 0), 0);
+    const totalCogs = billsWithTime.reduce(
+      (s, x) => s + (x.bill.items || []).reduce((is, i) => is + (i.unitCost || 0) * i.quantity, 0),
+      0
+    );
+    const totalExp = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const net = totalRev - totalCogs - totalExp;
+    const netPct = totalRev > 0 ? (net / totalRev) * 100 : 0;
+
+    if (net >= 0) {
+      insights.push({
+        id: 'profitability',
+        tone: 'positive',
+        text: `Net profit is ${cur(net)} (${netPct.toFixed(1)}% margin) after ${cur(totalExp)} in operating expenses and ${cur(totalCogs)} COGS.`,
+      });
+    } else {
+      insights.push({
+        id: 'profitability',
+        tone: 'warning',
+        text: `Net margin is currently in the red (${cur(net)}) with ${cur(totalExp)} in operating expenses exceeding gross profit.`,
+      });
+    }
+  }
+
   return {
     insights,
     restock,
-    hasData: billsWithTime.length > 0 || products.length > 0,
+    hasData: billsWithTime.length > 0 || products.length > 0 || expenses.length > 0,
   };
 }

@@ -5,7 +5,7 @@
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from './firebase';
 import { buildInsights, toMs } from './insights';
-import type { Bill, Product, Customer, Organization } from '../types';
+import type { Bill, Product, Customer, Organization, Expense } from '../types';
 import { errorMessage } from './errors';
 
 const functions = getFunctions(app, 'us-central1');
@@ -20,13 +20,25 @@ export function buildBusinessContext(
   org: Organization,
   bills: Bill[],
   products: Product[],
-  customers: Customer[]
+  customers: Customer[],
+  expenses: Expense[] = []
 ): string {
   const sym = org.currency.symbol;
   const now = Date.now();
   const DAY = 86_400_000;
 
   const totalRevenue = bills.reduce((s, b) => s + (b.total || 0), 0);
+  const totalCogs = bills.reduce(
+    (s, b) => s + (b.items || []).reduce((is, i) => is + (i.unitCost || 0) * i.quantity, 0),
+    0
+  );
+  const totalGrossProfit = bills.reduce(
+    (s, b) => s + (b.items || []).reduce((is, i) => is + (i.unitPrice - (i.unitCost || 0)) * i.quantity, 0),
+    0
+  );
+  const totalExpenses = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const netProfit = totalGrossProfit - totalExpenses;
+
   const billsWithTime = bills
     .map((b) => ({ bill: b, ms: toMs(b.createdAt) }))
     .filter((x): x is { bill: Bill; ms: number } => x.ms != null);
@@ -91,9 +103,26 @@ export function buildBusinessContext(
   lines.push(`Currency: ${org.currency.code} (${sym})`);
   lines.push(`Total bills recorded: ${bills.length}`);
   lines.push(`All-time revenue: ${sym}${totalRevenue.toFixed(2)}`);
+  lines.push(`All-time cost of goods sold: ${sym}${totalCogs.toFixed(2)}`);
+  lines.push(`All-time gross profit: ${sym}${totalGrossProfit.toFixed(2)}`);
+  lines.push(`All-time operating expenses: ${sym}${totalExpenses.toFixed(2)} (${expenses.length} entries)`);
+  lines.push(`All-time net profit: ${sym}${netProfit.toFixed(2)}`);
   lines.push(`Revenue in last 30 days: ${sym}${rev30.toFixed(2)} across ${last30.length} bills`);
   lines.push(`Total products in catalogue: ${products.length}`);
   lines.push(`Total customers: ${customers.length}`);
+
+  if (expenses.length > 0) {
+    const expCatMap = new Map<string, number>();
+    expenses.forEach((e) => {
+      const cur = expCatMap.get(e.category) || 0;
+      expCatMap.set(e.category, cur + (Number(e.amount) || 0));
+    });
+    lines.push('');
+    lines.push('EXPENSES BY CATEGORY:');
+    expCatMap.forEach((amt, cat) => {
+      lines.push(`  - ${cat}: ${sym}${amt.toFixed(2)}`);
+    });
+  }
 
   // Monthly revenue across full history
   const monthly = new Map<string, { revenue: number; count: number }>();

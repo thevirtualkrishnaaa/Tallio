@@ -5,14 +5,14 @@ import { useAuth } from '../contexts/AuthContext';
 import { useOrgCollection } from '../lib/useOrgCollection';
 import { askTallio, buildBusinessContext, isAiConfigured } from '../lib/askTallio';
 import type { ChatTurn } from '../lib/askTallio';
-import type { Bill, Product, Customer } from '../types';
+import type { Bill, Product, Customer, Expense } from '../types';
 import { errorMessage } from '../lib/errors';
 
 const SUGGESTIONS = [
-  'What was my best-selling product?',
-  'Which products should I restock?',
-  'How is my revenue trending?',
-  'Who are my top customers?',
+  'What is my net profit and biggest expense area?',
+  'What was my best-selling product this month?',
+  'Which products should I restock soon?',
+  'How is my revenue and margin trending?',
 ];
 
 const AskTallioPage: React.FC = () => {
@@ -20,6 +20,7 @@ const AskTallioPage: React.FC = () => {
   const { data: bills } = useOrgCollection<Bill>('bills', [orderBy('createdAt', 'desc')]);
   const { data: products } = useOrgCollection<Product>('products');
   const { data: customers } = useOrgCollection<Customer>('customers');
+  const { data: expenses } = useOrgCollection<Expense>('expenses');
 
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [input, setInput] = useState('');
@@ -28,8 +29,8 @@ const AskTallioPage: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const context = useMemo(
-    () => (org ? buildBusinessContext(org, bills, products, customers) : ''),
-    [org, bills, products, customers]
+    () => (org ? buildBusinessContext(org, bills, products, customers, expenses) : ''),
+    [org, bills, products, customers, expenses]
   );
 
   useEffect(() => {

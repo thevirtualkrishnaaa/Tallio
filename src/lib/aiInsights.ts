@@ -9,7 +9,7 @@
 
 import { askTallio, buildBusinessContext } from './askTallio';
 import { toMs } from './insights';
-import type { Bill, Product, Customer, Organization } from '../types';
+import type { Bill, Product, Customer, Organization, Expense } from '../types';
 
 export interface AiFinding {
   tone: 'positive' | 'warning' | 'neutral';
@@ -39,17 +39,26 @@ const BRIEFING_PROMPT =
 
 // Cheap signature of the inputs a briefing was written from. When this changes,
 // the cached briefing is stale and the page offers a refresh.
-export function dataFingerprint(bills: Bill[], products: Product[], customers: Customer[]): string {
+export function dataFingerprint(
+  bills: Bill[],
+  products: Product[],
+  customers: Customer[],
+  expenses: Expense[] = []
+): string {
   const revenue = bills.reduce((s, b) => s + (b.total || 0), 0);
+  const totalExp = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const stock = products.reduce((s, p) => s + (Number(p.stock) || 0), 0);
-  const latest = bills.reduce((m, b) => Math.max(m, toMs(b.createdAt) ?? 0), 0);
+  const latestBill = bills.reduce((m, b) => Math.max(m, toMs(b.createdAt) ?? 0), 0);
+  const latestExp = expenses.reduce((m, e) => Math.max(m, toMs(e.createdAt) ?? 0), 0);
   return [
     bills.length,
     revenue.toFixed(2),
+    expenses.length,
+    totalExp.toFixed(2),
     products.length,
     stock,
     customers.length,
-    latest,
+    Math.max(latestBill, latestExp),
   ].join('|');
 }
 
@@ -105,15 +114,16 @@ export async function generateBriefing(
   org: Organization,
   bills: Bill[],
   products: Product[],
-  customers: Customer[]
+  customers: Customer[],
+  expenses: Expense[] = []
 ): Promise<AiBriefing> {
-  const context = buildBusinessContext(org, bills, products, customers);
+  const context = buildBusinessContext(org, bills, products, customers, expenses);
   const raw = await askTallio(context, [], BRIEFING_PROMPT, 'insights');
   if (!raw.trim()) throw new Error('Tallio AI returned an empty briefing — please try again.');
   return {
     ...parseBriefing(raw),
     generatedAt: Date.now(),
-    fingerprint: dataFingerprint(bills, products, customers),
+    fingerprint: dataFingerprint(bills, products, customers, expenses),
   };
 }
 

@@ -15,8 +15,9 @@
 | 🛒 **Point of Sale** | Fast billing with cart, quantities & totals |
 | 📦 **Products** | Add, edit, delete inventory items with pricing |
 | 📜 **Sales History** | Full transaction log with date & amount |
+| 💸 **Expenses & P&L** | Log operating expenses, category breakdown & Net Profit |
 | 👥 **Customers** | Customer directory with contact info |
-| 📊 **Dashboard** | Revenue overview with charts |
+| 📊 **Dashboard** | Revenue, gross margin & net income overview with charts |
 | ⚙️ **Settings** | Business profile & preferences |
 
 ---
@@ -60,7 +61,7 @@
 
 - [x] Plan gates enforced in UI (products + monthly bills)
 - [x] Billing & Plan page with instant plan switching
-- [ ] **Real Stripe checkout** (needs Firebase Blaze + Cloud Function)
+- [x] **Real Stripe checkout** (test mode live with Cloud Function + webhooks)
 
 ---
 
@@ -77,9 +78,9 @@
 
 ### 🔧 Phase 4 — Power Features
 - [x] Multi-user / staff roles (owner, cashier, viewer)
+- [x] Expense tracking & Net Profit (P&L waterfall)
 - [ ] GST / tax calculation & invoice generation
 - [ ] WhatsApp / SMS receipt sharing
-- [ ] Expense tracking (not just sales)
 - [ ] Mobile PWA (installable on phone)
 - [ ] Export data to Excel / CSV
 

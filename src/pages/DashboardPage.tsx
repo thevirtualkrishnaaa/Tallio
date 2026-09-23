@@ -1,21 +1,32 @@
 import React, { useMemo } from 'react';
 import { orderBy } from 'firebase/firestore';
-import { TrendingUp, Package, Users, AlertCircle } from 'lucide-react';
+import { TrendingUp, TrendingDown, Package, Users, AlertCircle, DollarSign, Receipt, PieChart } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useOrgCollection } from '../lib/useOrgCollection';
-import type { Bill, Product, Customer } from '../types';
+import type { Bill, Product, Customer, Expense } from '../types';
 
 const DashboardPage: React.FC = () => {
   const { org } = useAuth();
   const { data: bills } = useOrgCollection<Bill>('bills', [orderBy('createdAt', 'desc')]);
   const { data: products } = useOrgCollection<Product>('products');
   const { data: customers } = useOrgCollection<Customer>('customers');
+  const { data: expenses } = useOrgCollection<Expense>('expenses', [orderBy('createdAt', 'desc')]);
 
   const totalRevenue = bills.reduce((s, b) => s + (b.total || 0), 0);
-  const totalProfit = bills.reduce(
+  const totalCogs = bills.reduce(
+    (s, b) => s + (b.items || []).reduce((is, i) => is + (i.unitCost || 0) * i.quantity, 0),
+    0
+  );
+  const totalGrossProfit = bills.reduce(
     (s, b) => s + (b.items || []).reduce((is, i) => is + (i.unitPrice - (i.unitCost || 0)) * i.quantity, 0),
     0
   );
+  const totalExpenses = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const netProfit = totalGrossProfit - totalExpenses;
+
+  const grossMarginPct = totalRevenue > 0 ? (totalGrossProfit / totalRevenue) * 100 : 0;
+  const netMarginPct = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+
   const lowStock = products.filter((p) => p.stock > 0 && p.stock <= p.lowStockAlert);
   const outOfStock = products.filter((p) => p.stock <= 0);
 
@@ -48,10 +59,16 @@ const DashboardPage: React.FC = () => {
       <p className="text-sm text-gray-500 mb-6">Key metrics for {org.name}</p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Kpi icon={TrendingUp} color="text-blue-500" label="Total revenue" value={`${currency}${totalRevenue.toFixed(2)}`} hint={`${bills.length} bills`} />
-        <Kpi icon={TrendingUp} color="text-green-500" label="Gross profit" value={`${currency}${totalProfit.toFixed(2)}`} hint="based on cost vs price" />
-        <Kpi icon={Package} color="text-purple-500" label="Products" value={String(products.length)} hint={`${lowStock.length} low · ${outOfStock.length} out`} />
-        <Kpi icon={Users} color="text-orange-500" label="Customers" value={String(customers.length)} hint="tracked" />
+        <Kpi icon={TrendingUp} color="text-blue-500" label="Total revenue" value={`${currency}${totalRevenue.toFixed(2)}`} hint={`${bills.length} bills created`} />
+        <Kpi icon={DollarSign} color="text-emerald-500" label="Gross profit" value={`${currency}${totalGrossProfit.toFixed(2)}`} hint={`${grossMarginPct.toFixed(1)}% gross margin`} />
+        <Kpi icon={TrendingDown} color="text-rose-500" label="Total expenses" value={`${currency}${totalExpenses.toFixed(2)}`} hint={`${expenses.length} expense entries`} />
+        <Kpi
+          icon={Receipt}
+          color={netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}
+          label="Net profit"
+          value={`${netProfit < 0 ? '-' : ''}${currency}${Math.abs(netProfit).toFixed(2)}`}
+          hint={`${netMarginPct.toFixed(1)}% net margin`}
+        />
       </div>
 
       {(lowStock.length > 0 || outOfStock.length > 0) && (
@@ -67,6 +84,45 @@ const DashboardPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* P&L Financial Waterfall Card */}
+      <div className="bg-white border rounded-xl p-5 mb-6 shadow-sm">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-sm font-semibold text-gray-900">Profit & Loss (P&L) Summary</h3>
+          <span className="text-xs text-gray-400 font-medium">All-time workspace financials</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 text-center divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
+          <div className="pt-2 sm:pt-0 sm:px-2">
+            <div className="text-xs text-gray-400">Total Revenue</div>
+            <div className="text-base font-bold text-gray-900 mt-0.5">{currency}{totalRevenue.toFixed(2)}</div>
+            <div className="text-[11px] text-gray-400">100% of sales</div>
+          </div>
+          <div className="pt-2 sm:pt-0 sm:px-2">
+            <div className="text-xs text-gray-400">Cost of Goods (COGS)</div>
+            <div className="text-base font-semibold text-gray-700 mt-0.5">− {currency}{totalCogs.toFixed(2)}</div>
+            <div className="text-[11px] text-gray-400">{totalRevenue > 0 ? ((totalCogs / totalRevenue) * 100).toFixed(1) : '0'}% of sales</div>
+          </div>
+          <div className="pt-2 sm:pt-0 sm:px-2">
+            <div className="text-xs text-gray-400">Gross Margin</div>
+            <div className="text-base font-bold text-blue-600 mt-0.5">{currency}{totalGrossProfit.toFixed(2)}</div>
+            <div className="text-[11px] text-blue-500 font-medium">{grossMarginPct.toFixed(1)}% margin</div>
+          </div>
+          <div className="pt-2 sm:pt-0 sm:px-2">
+            <div className="text-xs text-gray-400">Operating Expenses</div>
+            <div className="text-base font-semibold text-rose-600 mt-0.5">− {currency}{totalExpenses.toFixed(2)}</div>
+            <div className="text-[11px] text-gray-400">{totalRevenue > 0 ? ((totalExpenses / totalRevenue) * 100).toFixed(1) : '0'}% overhead</div>
+          </div>
+          <div className="pt-2 sm:pt-0 sm:px-2">
+            <div className="text-xs text-gray-400 font-medium">Net Profit / Income</div>
+            <div className={`text-base font-bold mt-0.5 ${netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+              {netProfit < 0 ? '-' : ''}{currency}{Math.abs(netProfit).toFixed(2)}
+            </div>
+            <div className={`text-[11px] font-semibold ${netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+              {netMarginPct.toFixed(1)}% net
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <Panel title="Top performing products">

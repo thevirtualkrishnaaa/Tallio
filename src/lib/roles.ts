@@ -27,4 +27,6 @@ export const can = {
   manageSettings: (r: OrgRole | null) => r === 'owner',
   manageBilling: (r: OrgRole | null) => r === 'owner',
   manageTeam: (r: OrgRole | null) => r === 'owner',
+  manageExpenses: (r: OrgRole | null) => r === 'owner',
+  viewExpenses: (r: OrgRole | null) => r === 'owner' || r === 'cashier' || r === 'viewer',
 };

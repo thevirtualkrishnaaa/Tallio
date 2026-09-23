@@ -119,3 +119,32 @@ export interface Bill {
   createdAt: FirestoreDate;
   createdBy: string; // userId
 }
+
+export type ExpenseCategory =
+  | 'Inventory'
+  | 'Rent'
+  | 'Utilities'
+  | 'Salaries'
+  | 'Marketing'
+  | 'Maintenance'
+  | 'Software'
+  | 'Tax'
+  | 'Other';
+
+export type PaymentMethod = 'Cash' | 'Card' | 'Bank Transfer' | 'UPI' | 'Other';
+
+export interface Expense {
+  id: string;
+  title: string;
+  amount: number;
+  category: ExpenseCategory;
+  date: FirestoreDate;
+  paymentMethod?: PaymentMethod;
+  notes?: string;
+  vendor?: string;
+  referenceNumber?: string;
+  createdBy: string;
+  createdAt: FirestoreDate;
+  updatedAt?: FirestoreDate;
+}
+

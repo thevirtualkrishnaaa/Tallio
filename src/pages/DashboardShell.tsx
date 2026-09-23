@@ -1,12 +1,13 @@
 import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  LayoutGrid, Receipt, History, Package, Users, Settings, LogOut, CreditCard, Sparkles, MessageSquare, ShieldCheck,
+  LayoutGrid, Receipt, History, Package, Users, Settings, LogOut, CreditCard, Sparkles, MessageSquare, ShieldCheck, Wallet,
 } from 'lucide-react';
 // Each page is its own chunk. A till runs on whatever phone is behind the
 // counter, so the shell should not ship nine screens nobody has opened yet.
 const POSPage = lazy(() => import('./POSPage'));
 const HistoryPage = lazy(() => import('./HistoryPage'));
+const ExpensesPage = lazy(() => import('./ExpensesPage'));
 const ProductsPage = lazy(() => import('./ProductsPage'));
 const CustomersPage = lazy(() => import('./CustomersPage'));
 const SettingsPage = lazy(() => import('./SettingsPage'));
@@ -19,7 +20,7 @@ import DemoBanner from '../components/DemoBanner';
 import { roleLabel } from '../lib/roles';
 import type { OrgRole } from '../types';
 
-type Tab = 'dashboard' | 'insights' | 'ask' | 'pos' | 'history' | 'products' | 'customers' | 'team' | 'billing' | 'settings';
+type Tab = 'dashboard' | 'insights' | 'ask' | 'pos' | 'history' | 'expenses' | 'products' | 'customers' | 'team' | 'billing' | 'settings';
 
 // `roles` omitted = visible to everyone; otherwise restricted to those roles.
 const NAV: { id: Tab; label: string; icon: React.ElementType; section: string; roles?: OrgRole[] }[] = [
@@ -28,6 +29,7 @@ const NAV: { id: Tab; label: string; icon: React.ElementType; section: string; r
   { id: 'ask', label: 'Ask Tallio', icon: MessageSquare, section: 'Overview' },
   { id: 'pos', label: 'New bill', icon: Receipt, section: 'Billing', roles: ['owner', 'cashier'] },
   { id: 'history', label: 'Bill history', icon: History, section: 'Billing' },
+  { id: 'expenses', label: 'Expenses', icon: Wallet, section: 'Billing' },
   { id: 'products', label: 'Products', icon: Package, section: 'Catalogue' },
   { id: 'customers', label: 'Customers', icon: Users, section: 'Catalogue' },
   { id: 'team', label: 'Team', icon: ShieldCheck, section: 'System', roles: ['owner'] },
@@ -133,6 +135,7 @@ const DashboardShell: React.FC = () => {
             {tab === 'ask' && <AskTallioPage />}
             {tab === 'pos' && <POSPage />}
             {tab === 'history' && <HistoryPage />}
+            {tab === 'expenses' && <ExpensesPage />}
             {tab === 'products' && <ProductsPage />}
             {tab === 'customers' && <CustomersPage />}
             {tab === 'team' && <TeamPage />}
