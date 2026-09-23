@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { orderBy } from 'firebase/firestore';
 import {
   Sparkles, TrendingUp, AlertTriangle, Lightbulb, PackageX,
-  RefreshCw, Loader2, ArrowRight, Bot,
+  RefreshCw, Loader2, ArrowRight, Bot, Key, ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useOrgCollection } from '../lib/useOrgCollection';
@@ -10,6 +10,7 @@ import { buildInsights } from '../lib/insights';
 import {
   generateBriefing, loadBriefing, saveBriefing, dataFingerprint, timeAgo,
 } from '../lib/aiInsights';
+import { isAiConfigured, getGeminiApiKey, setGeminiApiKey } from '../lib/askTallio';
 import type { AiBriefing } from '../lib/aiInsights';
 import type { Bill, Product, Customer, Expense } from '../types';
 
@@ -25,8 +26,6 @@ const findingDot = {
   neutral: 'bg-blue-500',
 } as const;
 
-// Briefing state is keyed by org so switching orgs (or into demo) shows that
-// org's own cached briefing rather than the previous one.
 interface AiState {
   orgId: string | null;
   briefing: AiBriefing | null;
@@ -52,18 +51,20 @@ const InsightsPage: React.FC = () => {
   const { data: customers } = useOrgCollection<Customer>('customers');
   const { data: expenses } = useOrgCollection<Expense>('expenses');
 
+  const [showKeyModal, setShowKeyModal] = useState(false);
+  const [keyInput, setKeyInput] = useState('');
+  const [configured, setConfigured] = useState(() => isAiConfigured());
+
   const report = useMemo(
     () => buildInsights(bills, products, customers, org?.currency.symbol || '£', expenses),
     [bills, products, customers, org?.currency.symbol, expenses]
   );
 
-  // ── Claude-written briefing ──────────────────────────────────────────────
+  // ── Gemini-written briefing ──────────────────────────────────────────────
   const orgId = org?.id ?? null;
   const [ai, setAi] = useState<AiState>(() => initAi(orgId));
   const [writing, setWriting] = useState(false);
 
-  // Org changed — reload that org's cached briefing during render rather than
-  // in an effect, so the page never flashes the previous org's briefing.
   if (ai.orgId !== orgId) setAi(initAi(orgId));
 
   const { briefing, error: aiError } = ai;
@@ -74,8 +75,20 @@ const InsightsPage: React.FC = () => {
   );
   const stale = !!briefing && briefing.fingerprint !== fingerprint;
 
+  const saveKey = () => {
+    setGeminiApiKey(keyInput);
+    setConfigured(isAiConfigured());
+    setShowKeyModal(false);
+    setKeyInput('');
+  };
+
   const write = async () => {
     if (!org || writing) return;
+    if (!isAiConfigured()) {
+      setKeyInput(getGeminiApiKey() || '');
+      setShowKeyModal(true);
+      return;
+    }
     setWriting(true);
     setAi((s) => ({ ...s, error: '' }));
     try {
@@ -96,13 +109,100 @@ const InsightsPage: React.FC = () => {
 
   return (
     <div>
-      <div className="flex items-center gap-2 mb-1">
-        <Sparkles className="text-purple-500" size={22} />
-        <h2 className="text-2xl font-semibold text-gray-900">Tallio Insights</h2>
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-2">
+          <Sparkles className="text-purple-500" size={22} />
+          <h2 className="text-2xl font-semibold text-gray-900">Tallio Insights</h2>
+        </div>
+        <button
+          onClick={() => {
+            setKeyInput(getGeminiApiKey() || '');
+            setShowKeyModal(true);
+          }}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+          title="Configure Google Gemini API Key"
+        >
+          <Key size={14} className={configured ? 'text-green-600' : 'text-amber-500'} />
+          <span>{configured ? 'Gemini Key Configured' : 'Set Gemini Key'}</span>
+        </button>
       </div>
       <p className="text-sm text-gray-500 mb-6">
-        Automatic analysis of your sales, products, and customers — refreshed live.
+        Automatic analysis of your sales, products, expenses, and customers — refreshed live.
       </p>
+
+      {showKeyModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl border border-gray-100 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
+                <Key className="text-purple-600" size={16} />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Google Gemini API Key</h3>
+            </div>
+            <p className="text-xs text-gray-500 mb-4">
+              Enter your Google AI Studio API key to enable live AI Analyst Briefings.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">API Key</label>
+                <input
+                  type="password"
+                  value={keyInput}
+                  onChange={(e) => setKeyInput(e.target.value)}
+                  placeholder="AIzaSy..."
+                  className="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-purple-600"
+                />
+              </div>
+
+              <div className="bg-purple-50 rounded-xl p-3 text-xs text-purple-800 space-y-1">
+                <p className="font-medium">Get a free key in 30 seconds:</p>
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-purple-700 hover:text-purple-900 underline font-medium"
+                >
+                  Open Google AI Studio <ExternalLink size={12} />
+                </a>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 mt-6 pt-4 border-t">
+              {configured && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGeminiApiKey('');
+                    setConfigured(false);
+                    setShowKeyModal(false);
+                  }}
+                  className="text-xs text-red-600 hover:text-red-700"
+                >
+                  Clear Key
+                </button>
+              )}
+              <div className="flex items-center gap-2 ml-auto">
+                <button
+                  type="button"
+                  onClick={() => setShowKeyModal(false)}
+                  className="text-xs px-3 py-2 rounded-lg border text-gray-600 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveKey}
+                  disabled={!keyInput.trim()}
+                  className="text-xs px-4 py-2 rounded-lg bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-40 font-medium"
+                >
+                  Save Key
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <p className="text-sm text-gray-500">Analysing your data…</p>
@@ -112,7 +212,7 @@ const InsightsPage: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-6">
-          {/* AI analyst briefing — written by Claude from the live data */}
+          {/* AI analyst briefing — written by Gemini from the live data */}
           <div className="border border-purple-200 bg-gradient-to-br from-purple-50 to-white rounded-xl p-5">
             <div className="flex items-start justify-between gap-4 mb-3">
               <div className="flex items-center gap-2">
@@ -142,11 +242,11 @@ const InsightsPage: React.FC = () => {
 
             {writing && !briefing ? (
               <p className="text-sm text-gray-500 py-4">
-                Claude is reading your books — this takes a few seconds…
+                Google Gemini is analysing your books — this takes a few seconds…
               </p>
             ) : !briefing ? (
               <p className="text-sm text-gray-500 py-2">
-                The cards below are computed instantly from your numbers. Ask Claude for the
+                The cards below are computed instantly from your numbers. Ask Google Gemini for the
                 written version when you want the story behind them — what is trending, what is
                 quietly slipping, and what to do about it this week.
               </p>
@@ -264,7 +364,7 @@ const InsightsPage: React.FC = () => {
 
           <p className="text-xs text-gray-400">
             ✨ The cards above update automatically as you make sales. The briefing is written on
-            demand by Claude — ask for a fresh one whenever the numbers move.
+            demand by Google Gemini — ask for a fresh one whenever the numbers move.
           </p>
         </div>
       )}
