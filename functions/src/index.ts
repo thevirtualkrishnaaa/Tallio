@@ -9,9 +9,10 @@ export { createCheckoutSession, stripeWebhook } from './stripe.js';
 // Set it once with:  firebase functions:secrets:set ANTHROPIC_API_KEY
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
 
-// Model can be swapped here. Opus is the most capable; switch to
-// 'claude-haiku-4-5' (~5x cheaper) or 'claude-sonnet-4-6' if cost matters.
-const MODEL = 'claude-opus-4-8';
+// Model identifier from Anthropic Claude API:
+// 'claude-3-5-sonnet-20241022' is standard & highly capable;
+// 'claude-3-5-haiku-20241022' is ~5x cheaper and faster.
+const MODEL = 'claude-3-5-sonnet-20241022';
 
 interface ChatTurn {
   role: 'user' | 'assistant';
