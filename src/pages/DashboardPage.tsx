@@ -1,15 +1,14 @@
 import React, { useMemo } from 'react';
 import { orderBy } from 'firebase/firestore';
-import { TrendingUp, TrendingDown, Package, Users, AlertCircle, DollarSign, Receipt, PieChart } from 'lucide-react';
+import { TrendingUp, TrendingDown, AlertCircle, DollarSign, Receipt } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useOrgCollection } from '../lib/useOrgCollection';
-import type { Bill, Product, Customer, Expense } from '../types';
+import type { Bill, Product, Expense } from '../types';
 
 const DashboardPage: React.FC = () => {
   const { org } = useAuth();
   const { data: bills } = useOrgCollection<Bill>('bills', [orderBy('createdAt', 'desc')]);
   const { data: products } = useOrgCollection<Product>('products');
-  const { data: customers } = useOrgCollection<Customer>('customers');
   const { data: expenses } = useOrgCollection<Expense>('expenses', [orderBy('createdAt', 'desc')]);
 
   const totalRevenue = bills.reduce((s, b) => s + (b.total || 0), 0);
