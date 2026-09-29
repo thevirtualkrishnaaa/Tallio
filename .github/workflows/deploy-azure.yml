@@ -1,0 +1,24 @@
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Upload to Azure
+        run: az storage blob upload-batch --connection-string "$CONN" -d '$web' -s dist --overwrite
+        env:
+          CONN: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
