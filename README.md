@@ -2,7 +2,7 @@
 
 > A modern Point-of-Sale & business finance platform built for small businesses. Manage sales, inventory, customers, and finances — all in one place.
 
-🌐 **Live App:** [https://talliofinance.web.app](https://talliofinance.web.app)
+🌐 **Live App:** [https://tallioweb2026.z28.web.core.windows.net](https://tallioweb2026.z28.web.core.windows.net)
 
 ---
 
