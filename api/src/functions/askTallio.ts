@@ -1,5 +1,4 @@
 import { app, HttpRequest, InvocationContext } from "@azure/functions";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { requireUser, HttpError } from "../auth";
 import { errorResponse } from "../http";
 
@@ -71,27 +70,48 @@ app.http("askTallio", {
       if (!apiKey) throw new HttpError(503, "Tallio AI is not configured yet.");
 
       const insightsMode = body.mode === "insights";
-      const model = new GoogleGenerativeAI(apiKey).getGenerativeModel({
-        model: MODEL,
-        systemInstruction:
-          `${insightsMode ? INSIGHTS_SYSTEM : CHAT_SYSTEM}\n\n` +
-          `=== BUSINESS DATA SNAPSHOT ===\n${body.context ?? ""}\n=== END DATA ===`,
-        generationConfig: { maxOutputTokens: insightsMode ? 1600 : 1024, temperature: 0.2 },
-      });
+      const history = insightsMode ? [] : (Array.isArray(body.history) ? body.history : [])
+        .filter((h) => h && typeof h.text === "string")
+        .slice(-20)
+        .map((h) => ({
+          role: h.role === "assistant" || h.role === "model" ? "model" : "user",
+          parts: [{ text: h.text }],
+        }));
 
-      let answer: string;
-      if (insightsMode) {
-        answer = (await model.generateContent(question)).response.text().trim();
-      } else {
-        const history = (Array.isArray(body.history) ? body.history : [])
-          .filter((h) => h && typeof h.text === "string")
-          .slice(-20)
-          .map((h) => ({
-            role: h.role === "assistant" || h.role === "model" ? ("model" as const) : ("user" as const),
-            parts: [{ text: h.text }],
-          }));
-        answer = (await model.startChat({ history }).sendMessage(question)).response.text().trim();
+      // Call the Gemini REST API directly. The key goes in the x-goog-api-key
+      // header, which works with Google's newer "AQ." keys.
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+          body: JSON.stringify({
+            systemInstruction: {
+              parts: [{
+                text:
+                  `${insightsMode ? INSIGHTS_SYSTEM : CHAT_SYSTEM}\n\n` +
+                  `=== BUSINESS DATA SNAPSHOT ===\n${body.context ?? ""}\n=== END DATA ===`,
+              }],
+            },
+            contents: [...history, { role: "user", parts: [{ text: question }] }],
+            generationConfig: { maxOutputTokens: insightsMode ? 1600 : 1024, temperature: 0.2 },
+          }),
+        }
+      );
+
+      const data = (await res.json().catch(() => ({}))) as {
+        candidates?: { content?: { parts?: { text?: string }[] } }[];
+        error?: { message?: string; status?: string };
+      };
+      if (!res.ok) {
+        context.error(`Gemini error ${res.status}: ${data.error?.status} ${data.error?.message}`);
+        throw new HttpError(502, `Tallio AI is unavailable right now (Gemini ${res.status}).`);
       }
+      const answer = (data.candidates?.[0]?.content?.parts ?? [])
+        .map((p) => p.text ?? "")
+        .join("")
+        .trim();
+      if (!answer) throw new HttpError(502, "Tallio AI returned an empty answer. Please try again.");
       return { jsonBody: { answer } };
     } catch (err) {
       return errorResponse(err, context);
